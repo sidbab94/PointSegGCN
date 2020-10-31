@@ -10,19 +10,25 @@ def get_neighbours(points):
     """
     indices = np.arange(points.shape[0])
     nn = 2
+    list_of_points = list(points.tolist())
     for point in enumerate(points):
         curr_point_indx = point[0]
         curr_point = np.array([point[1]])
+
         targets = points[indices != curr_point_indx, :]
         distances = cdist(targets, curr_point, metric='euclidean').flatten().tolist()
         target_indx_dict = dict(enumerate(targets))
         dist_indx_dict = dict(enumerate(distances))
+
         sorted_distances = {k: v for k, v in sorted(dist_indx_dict.items(), key=lambda item: item[1])}
-        # print('---------')
         nn_indices = list(sorted_distances.keys())[:nn]
-        nearest_points = list(target_indx_dict[i] for i in nn_indices)
-        start, end = point[1].flatten(), nearest_points
-        return start, end
+        nearest_points = list(target_indx_dict[i].tolist() for i in nn_indices)
+
+        start = point[1].flatten()
+        startpoint_index = list_of_points.index(start.tolist())
+        endpoint_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
+        print(startpoint_index, endpoint_indices)
+        # print(list_of_points.index(nearest_points[0]))
 
 
 def plot3D(points):
@@ -63,7 +69,7 @@ class Graph(object):
 
 
 np.random.seed(89)
-rand_array = np.random.rand(10, 3)
+rand_array = np.random.rand(50, 3)
 G = Graph(numNodes=rand_array.shape[0])
 """
 find a way to construct edges, by passing indices of start and end points to Graph()
