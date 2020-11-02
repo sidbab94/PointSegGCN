@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from time import time
 import networkx as nx
-plt.switch_backend('Qt5Agg')
+from mayavi import mlab
+# plt.switch_backend('TkAgg')
 
 
 def get_neighbours(points):
@@ -40,7 +41,7 @@ def plot3D(points):
     ax1.set_zlabel('Z')
     ax1.scatter(points[:, 0], points[:, 1], points[:, 2], marker='x', label='Original')
     plt.autoscale()
-    plt.show()
+    # plt.show()
 
 
 class Graph(object):
@@ -77,14 +78,32 @@ def generate_3d_data(m, w1=0.1, w2=0.3, noise=0.1):
     data[:, 2] = data[:, 0] * w1 + data[:, 1] * w2 + noise * np.random.randn(m)
     return data
 
+def visualize_graph(graph, array):
+    G = nx.convert_node_labels_to_integers(graph)
+    xyz = array
+    scalars = np.array(list(G.nodes())) + 5
+    pts = mlab.points3d(
+        xyz[:, 0],
+        xyz[:, 1],
+        xyz[:, 2],
+        scalars,
+        scale_factor=0.1,
+        scale_mode="none",
+        colormap="Blues",
+        resolution=20,
+    )
+
+    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
+    tube = mlab.pipeline.tube(pts, tube_radius=0.01)
+    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+    mlab.show()
+
 np.random.seed(89)
-# rand_array = np.random.rand(20, 3)
-# plot3D(rand_array)
-rand_array = generate_3d_data(m=20)
+rand_array = np.random.rand(20, 3)
+# rand_array = generate_3d_data(m=1000)
+plot3D(rand_array)
+points_dict = dict(enumerate(rand_array.tolist()))
 G = Graph(numNodes=rand_array.shape[0])
-"""
-find a way to construct edges, by passing indices of start and end points to Graph()
-"""
 start = time()
 index_pairs = get_neighbours(rand_array)
 print('Time elapsed in seconds for {} points: {}'.format(rand_array.shape[0], time()-start))
@@ -95,7 +114,8 @@ for pair in index_pairs:
 
 A = G.adjacencyMatrix
 A = np.array(A)
-print(A.shape)
-graph = nx.Graph(A)
-nx.draw(graph)
+X = nx.Graph(A)
+# visualize_graph(X, rand_array)
+# print(X.pos)
 plt.show()
+# print(mlab.show_pipeline())

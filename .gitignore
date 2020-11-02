@@ -1,4 +1,5 @@
-/idea/
+/.idea/*
+/venv/
 DimReduction.py
 visualize_graph.py
 write_lmdb.py
