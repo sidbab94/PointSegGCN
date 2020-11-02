@@ -1,7 +1,7 @@
-import networkx as nx
 import numpy as np
-from mayavi import mlab
 import matplotlib.pyplot as plt
+import networkx as nx
+from mayavi import mlab
 
 # some graphs to try
 # H=nx.krackhardt_kite_graph()
