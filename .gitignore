@@ -1,4 +1,7 @@
 /.idea/*
+/idea/inspectionProfiles/*
+/idea/pc_graph.iml
+/idea/vcs.xml
 /venv/
 DimReduction.py
 visualize_graph.py
