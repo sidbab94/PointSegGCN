@@ -8,7 +8,7 @@ from scipy.spatial.distance import cdist
 from time import time
 from time import sleep
 import networkx as nx
-# from mayavi import mlab
+from mayavi import mlab
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 
@@ -37,14 +37,13 @@ def eucl_dist(target_points, source_point):
     print('Next point.')
     return l2_norm
 
-def get_neighbours_gpu(points):
+def get_neighbours_gpu(points, nn):
     """
     find k nearest neighbours of each point, draw edges
     """
     # all indices from 0 to total num_points-1:     list
     indices = np.arange(points.shape[0])
     # nearest neighbours to search for
-    nn = 2
     # list of all points:   list
     list_of_points = list(points.tolist())
     # pair of start point and end(neighbour) points in index format:    list
@@ -92,12 +91,11 @@ def get_neighbours_gpu(points):
             pointpairs.extend([[startpoint_index, endpoint_indices]])
     return pointpairs
 
-def get_neighbours(points):
+def get_neighbours(points, nn):
     """
     find k nearest neighbours of each point, draw edges
     """
     indices = np.arange(points.shape[0])
-    nn = 2
     list_of_points = list(points.tolist())
     pointpairs = []
 
@@ -170,21 +168,25 @@ def visualize_graph(graph, array):
         xyz[:, 1],
         xyz[:, 2],
         scalars,
-        scale_factor=0.1,
+        scale_factor=0.025,
         scale_mode="none",
         colormap="Blues",
         resolution=20,
     )
 
     pts.mlab_source.dataset.lines = np.array(list(G.edges()))
-    tube = mlab.pipeline.tube(pts, tube_radius=0.01)
+    tube = mlab.pipeline.tube(pts, tube_radius=0.005)
     mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
     mlab.show()
 
-# np.random.seed(89)
+np.random.seed(89)
 # rand_array = np.random.rand(100, 3)
 # rand_array = generate_3d_data(m=1000)
 rand_array = genfromtxt('000001.pts', delimiter='')
+NN = 10
+
+N = rand_array.shape[0]
+rand_array = rand_array[np.random.choice(N, round(0.04*N), replace=False), :]
 # print(rand_array.shape)
 
 
@@ -193,18 +195,18 @@ points_dict = dict(enumerate(rand_array.tolist()))
 G = Graph(numNodes=rand_array.shape[0])
 
 start_cpu = time()
-index_pairs_cpu = get_neighbours(rand_array)
+index_pairs_cpu = get_neighbours(rand_array, 3)
 print('Time elapsed in seconds for {} points: {}, using CPU'.format(rand_array.shape[0], time()-start_cpu))
 # print(type(index_pairs_cpu))
 # print(len(index_pairs_cpu))
 sleep(1)
 start_gpu = time()
-index_pairs_gpu = get_neighbours_gpu(rand_array)
+index_pairs_gpu = get_neighbours_gpu(rand_array, 3)
 print('Time elapsed in seconds for {} points: {}, using GPU'.format(rand_array.shape[0], time()-start_gpu))
 # print(type(index_pairs_gpu))
 # print(len(index_pairs_gpu))
 
-for pair in index_pairs:
+for pair in index_pairs_gpu:
     startindex = pair[0]
     for endindex in pair[1]:
         G.addEdge(startindex, endindex)
