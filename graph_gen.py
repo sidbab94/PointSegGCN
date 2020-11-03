@@ -1,14 +1,19 @@
 import numpy as np
 from numpy import genfromtxt
+import matplotlib
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d, Axes3D
 from scipy.spatial.distance import cdist
 from time import time
+from time import sleep
 import networkx as nx
-from mayavi import mlab
+# from mayavi import mlab
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
-# print(tf.test.is_gpu_available())
-# print(tf.config.list_physical_devices())
+
+print(tf.test.is_gpu_available())
+print(tf.config.list_physical_devices())
 
 
 # with tf.device('GPU:0'):
@@ -25,16 +30,67 @@ tf.disable_v2_behavior()
 # with tf.Session() as sess:
 #     o = sess.run(distances)
 
-
 def eucl_dist(target_points, source_point):
     x = source_point
     y = target_points
-    with tf.device('GPU:0'):
-        distances = []
-        for i in range(y.shape[0]):
-            l2_norm = tf.norm(x - y[i, :], ord='euclidean')
-            distances.append(l2_norm)
-    return distances
+    l2_norm = tf.norm(x - y, ord='euclidean', axis=1)
+    print('Next point.')
+    return l2_norm
+
+def get_neighbours_gpu(points):
+    """
+    find k nearest neighbours of each point, draw edges
+    """
+    # all indices from 0 to total num_points-1:     list
+    indices = np.arange(points.shape[0])
+    # nearest neighbours to search for
+    nn = 2
+    # list of all points:   list
+    list_of_points = list(points.tolist())
+    # pair of start point and end(neighbour) points in index format:    list
+    pointpairs = []
+
+    X = tf.placeholder(shape=[1, 3], dtype=tf.float32)
+    Y = tf.placeholder(shape=[points.shape[0]-1, 3], dtype=tf.float32)
+    dist_comp = eucl_dist(X, Y)
+    with tf.Session() as sess:
+        for point in enumerate(points):
+            # current point index:  int
+            curr_point_indx = point[0]
+            # current point coordinates in np array format:     np array
+            curr_point = np.array([point[1]])
+
+            # all points except current point:      np array
+            targets = points[indices != curr_point_indx, :]
+
+            # with tf.Session() as sess:
+            sess.run(tf.initializers.global_variables())
+            distances = sess.run(dist_comp, feed_dict={X: curr_point, Y: targets})
+
+            # # euclidean distances:      np array
+            # distances = eucl_dist(X, Y)
+
+            # index -> coordinates map for target points:       dict
+            target_indx_dict = dict(enumerate(targets))
+            # index -> distances map:       dict
+            dist_indx_dict = dict(enumerate(distances))
+
+            # sorted distances in ascending order:      dict
+            sorted_distances = {k: v for k, v in sorted(dist_indx_dict.items(), key=lambda item: item[1])}
+            # nearest neighbour indices:    list
+            nn_indices = list(sorted_distances.keys())[:nn]
+            # nearest points:       list
+            nearest_points = list(target_indx_dict[i].tolist() for i in nn_indices)
+
+            # current point:       np array
+            start = point[1].flatten()
+            # current point global index:   int
+            startpoint_index = list_of_points.index(start.tolist())
+            # end point(s) global indices:      int
+            endpoint_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
+            # start-end point global index pairs:       list
+            pointpairs.extend([[startpoint_index, endpoint_indices]])
+    return pointpairs
 
 def get_neighbours(points):
     """
@@ -44,6 +100,7 @@ def get_neighbours(points):
     nn = 2
     list_of_points = list(points.tolist())
     pointpairs = []
+
     for point in enumerate(points):
         curr_point_indx = point[0]
         curr_point = np.array([point[1]])
@@ -64,49 +121,11 @@ def get_neighbours(points):
         pointpairs.extend([[startpoint_index, endpoint_indices]])
     return pointpairs
 
-
-def get_neighbours_gpu(points):
-    """
-    find k nearest neighbours of each point, draw edges
-    """
-    indices = np.arange(points.shape[0])
-    nn = 2
-    list_of_points = list(points.tolist())
-    pointpairs = []
-    for point in enumerate(points):
-        curr_point_indx = point[0]
-        curr_point = np.array([point[1]])
-
-        targets = points[indices != curr_point_indx, :]
-        # distances = cdist(targets, curr_point, metric='euclidean').flatten().tolist()
-
-
-        distances = sess.run(eucl_dist(targets, curr_point))
-        print(distances)
-        # print(distances == distances2)
-
-
-        target_indx_dict = dict(enumerate(targets))
-        dist_indx_dict = dict(enumerate(distances))
-
-        sorted_distances = {k: v for k, v in sorted(dist_indx_dict.items(), key=lambda item: item[1])}
-        nn_indices = list(sorted_distances.keys())[:nn]
-        nearest_points = list(target_indx_dict[i].tolist() for i in nn_indices)
-
-        start = point[1].flatten()
-        startpoint_index = list_of_points.index(start.tolist())
-        endpoint_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
-        pointpairs.extend([[startpoint_index, endpoint_indices]])
-    return pointpairs
-
 def plot3D(points):
-    ax1 = plt.subplot(projection='3d')
-    ax1.set_xlabel('X')
-    ax1.set_ylabel('Y')
-    ax1.set_zlabel('Z')
-    ax1.scatter(points[:, 0], points[:, 1], points[:, 2], marker='x', label='Original')
+    fig = plt.figure()
+    ax = Axes3D(fig)
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], marker='x', label='Original')
     plt.autoscale()
-
 
 class Graph(object):
     def __init__(self, numNodes):
@@ -162,20 +181,29 @@ def visualize_graph(graph, array):
     mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
     mlab.show()
 
-np.random.seed(89)
-# rand_array = np.random.rand(20, 3)
+# np.random.seed(89)
+# rand_array = np.random.rand(100, 3)
 # rand_array = generate_3d_data(m=1000)
 rand_array = genfromtxt('000001.pts', delimiter='')
-print(rand_array.shape)
+# print(rand_array.shape)
 
 
 # plot3D(rand_array)
 points_dict = dict(enumerate(rand_array.tolist()))
 G = Graph(numNodes=rand_array.shape[0])
-start = time()
-with tf.Session() as sess:
-    index_pairs = get_neighbours(rand_array)
-print('Time elapsed in seconds for {} points: {}'.format(rand_array.shape[0], time()-start))
+
+start_cpu = time()
+index_pairs_cpu = get_neighbours(rand_array)
+print('Time elapsed in seconds for {} points: {}, using CPU'.format(rand_array.shape[0], time()-start_cpu))
+# print(type(index_pairs_cpu))
+# print(len(index_pairs_cpu))
+sleep(1)
+start_gpu = time()
+index_pairs_gpu = get_neighbours_gpu(rand_array)
+print('Time elapsed in seconds for {} points: {}, using GPU'.format(rand_array.shape[0], time()-start_gpu))
+# print(type(index_pairs_gpu))
+# print(len(index_pairs_gpu))
+
 for pair in index_pairs:
     startindex = pair[0]
     for endindex in pair[1]:
@@ -186,5 +214,5 @@ A = np.array(A)
 X = nx.Graph(A)
 plt.show()
 
-# visualize_graph(X, rand_array)
+visualize_graph(X, rand_array)
 
