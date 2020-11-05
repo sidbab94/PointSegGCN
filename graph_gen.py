@@ -5,9 +5,21 @@ from time import time
 import networkx as nx
 from mayavi import mlab
 from optparse import OptionParser
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
 
+parser = OptionParser()
+parser.add_option('--input', dest='inputpc', default='airplane.pts',
+                  help='Provide input point cloud file in .pts format')
+parser.add_option('--kNN', dest='nearestN', default=3, type='int',
+                  help='Provide number of nearest neighbours to process each point with')
+parser.add_option('--sample_size', dest='ss', default=2.0, type='float',
+                  help='Provide proportion of points (in %) to be randomly sampled from input distribution')
+parser.add_option('-g', dest='gpu_en', action='store_true',
+                  help='Enable GPU for euclidean distance computation (may be 10X slower!)')
+parser.add_option('-v', dest='visualize', action='store_true',
+                  help='Enable visualization of graph constructed from input point cloud')
+parser.add_option('-o', dest='optimal', action='store_true',
+                  help='Enable optimization of nearest neighbour search algorithm, in favour of performance')
+options, _ = parser.parse_args()
 
 def get_nearest_indices(curr_index, all_points, roi_each=50):
     last_point_indx = all_points.shape[0] - 1
@@ -267,22 +279,6 @@ def visualize_graph_xyz(graph, array):
 
 np.random.seed(89)
 
-parser = OptionParser()
-
-parser.add_option('--input', dest='inputpc', default='airplane.pts',
-                  help='Provide input point cloud file in .pts format')
-parser.add_option('--kNN', dest='nearestN', default=3, type='int',
-                  help='Provide number of nearest neighbours to process each point with')
-parser.add_option('--sample_size', dest='ss', default=2.0, type='float',
-                  help='Provide proportion of points (in %) to be randomly sampled from input distribution')
-parser.add_option('-g', dest='gpu_en', action='store_true',
-                  help='Enable GPU for euclidean distance computation (may be 10X slower!)')
-parser.add_option('-v', dest='visualize', action='store_true',
-                  help='Enable visualization of graph constructed from input point cloud')
-parser.add_option('-o', dest='optimal', action='store_true',
-                  help='Enable optimization of nearest neighbour search algorithm, in favour of performance')
-options, _ = parser.parse_args()
-
 input_cloud_fmt = options.inputpc.split('.')[1]
 if input_cloud_fmt == 'pts':
     pc_array = genfromtxt(options.inputpc, delimiter='')
@@ -293,7 +289,6 @@ elif input_cloud_fmt == 'npy':
 else:
     raise Exception('Provide a supported point cloud format')
 N = pc_array.shape[0]
-# print(pc_array[:10, :])
 sample_size = round(options.ss * 0.01 * N)
 NN = options.nearestN
 pc_array = pc_array[np.random.choice(N, sample_size, replace=False), :]
@@ -305,6 +300,8 @@ G = Graph(numNodes=pc_array.shape[0])
 
 if options.gpu_en:
     device = 'GPU'
+    import tensorflow.compat.v1 as tf
+    tf.disable_v2_behavior()
     start = time()
     index_pairs = get_neighbours_gpu(pc_array_XYZ, NN)
 else:
