@@ -9,6 +9,22 @@ import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 
 
+def get_nearest_indices(curr_index, all_points, roi_each=50):
+    last_point_indx = all_points.shape[0] - 1
+    n_bwd = curr_index
+    n_fwd = last_point_indx - curr_index
+    roi_fwd = roi_bwd = roi_each
+    if n_bwd < roi_each:
+        roi_bwd = n_bwd
+    if n_fwd < roi_each:
+        roi_fwd = n_fwd
+    roi_of_point = all_points[curr_index-roi_bwd:curr_index+roi_fwd+1, :]
+    excl_point_indx = list(roi_of_point.tolist()).index(all_points[curr_index, :].tolist())
+    roi_indices = np.arange(roi_of_point.shape[0])
+    target_points = roi_of_point[roi_indices != excl_point_indx, :]
+    return target_points
+
+
 def eucl_dist(target_points, source_point):
     """
 
@@ -76,11 +92,12 @@ def get_neighbours_gpu(points, nn):
 
     return pointpairs
 
-def get_neighbours(points, nn):
+def get_neighbours(points, nn, optim=False):
     """
     TARGET DEVICE - CPU
     :param points: complete point cloud as numpy array
     :param nn: nearest neighbours to search for
+    :param optim: boolean flag to enable NN search restriction --> graph construction accuracy may be compromised!
     :return: global index map of each point to corresponding neighbours
     """
     # all indices from 0 to total num_points-1
@@ -97,18 +114,22 @@ def get_neighbours(points, nn):
         curr_point = np.array([point[1]])
 
         # all points except current point
-        targets = points[indices != curr_point_indx, :]
+        if optim:
+            targets = get_nearest_indices(curr_point_indx, points, roi_each=100)
+        else:
+            targets = points[indices != curr_point_indx, :]
+
         # Compute euclidean distance between points using scipy
-        distances = cdist(targets, curr_point, metric='euclidean').flatten().tolist()
+        distances = cdist(targets, curr_point, metric='sqeuclidean').flatten().tolist()
 
         # index -> coordinates map for target points
         target_indx_dict = dict(enumerate(targets))
-        # index -> distances map:       dict
+        # index -> distances map
         dist_indx_dict = dict(enumerate(distances))
 
         # sorted distances in ascending order
         sorted_distances = {k: v for k, v in sorted(dist_indx_dict.items(), key=lambda item: item[1])}
-        # nearest neighbour indices:    list
+        # nearest neighbour indices
         nn_indices = list(sorted_distances.keys())[:nn]
         assert len(nn_indices) == nn
         # nearest points:       list
@@ -182,7 +203,7 @@ def rgb_2_scalar_idx(r, g, b):
     return 256**2 *r + 256 * g + b
 
 
-def visualize_graph(graph, array):
+def visualize_graph_rgb(graph, array):
     """
 
     :param graph: Input graph constructed from adj matrix
@@ -221,6 +242,28 @@ def visualize_graph(graph, array):
 
     mlab.show()
 
+def visualize_graph_xyz(graph, array):
+    G = nx.convert_node_labels_to_integers(graph)
+    xyz = array
+    scalars = np.array(list(G.nodes())) + 5
+    pts = mlab.points3d(
+        xyz[:, 0],
+        xyz[:, 1],
+        xyz[:, 2],
+        scalars,
+        scale_factor=0.0085,
+        scale_mode="none",
+        colormap="Blues",
+        resolution=20,
+    )
+
+    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
+    tube = mlab.pipeline.tube(pts, tube_radius=0.001)
+    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+    pts.glyph.glyph.clamping = False
+    pts.glyph.scale_mode = 'data_scaling_off'
+    mlab.show()
+
 
 np.random.seed(89)
 
@@ -236,6 +279,8 @@ parser.add_option('-g', dest='gpu_en', action='store_true',
                   help='Enable GPU for euclidean distance computation (may be 10X slower!)')
 parser.add_option('-v', dest='visualize', action='store_true',
                   help='Enable visualization of graph constructed from input point cloud')
+parser.add_option('-o', dest='optimal', action='store_true',
+                  help='Enable optimization of nearest neighbour search algorithm, in favour of performance')
 options, _ = parser.parse_args()
 
 input_cloud_fmt = options.inputpc.split('.')[1]
@@ -248,9 +293,11 @@ elif input_cloud_fmt == 'npy':
 else:
     raise Exception('Provide a supported point cloud format')
 N = pc_array.shape[0]
+# print(pc_array[:10, :])
 sample_size = round(options.ss * 0.01 * N)
 NN = options.nearestN
 pc_array = pc_array[np.random.choice(N, sample_size, replace=False), :]
+print('Total number of sampled points: ', pc_array.shape[0])
 pc_array_XYZ = pc_array[:, :3]
 
 points_dict = dict(enumerate(pc_array_XYZ.tolist()))
@@ -259,14 +306,14 @@ G = Graph(numNodes=pc_array.shape[0])
 if options.gpu_en:
     device = 'GPU'
     start = time()
-    index_pairs_cpu = get_neighbours_gpu(pc_array_XYZ, NN)
+    index_pairs = get_neighbours_gpu(pc_array_XYZ, NN)
 else:
     device = 'CPU'
     start = time()
-    index_pairs_cpu = get_neighbours(pc_array_XYZ, NN)
+    index_pairs = get_neighbours(pc_array_XYZ, NN, optim=options.optimal)
 print('Time elapsed in seconds for {} points: {}, using {}'.format(pc_array.shape[0], time()-start, device))
 
-for pair in index_pairs_cpu:
+for pair in index_pairs:
     startindex = pair[0]
     for endindex in pair[1]:
         G.addEdge(startindex, endindex)
@@ -276,4 +323,7 @@ A = np.array(A)
 X = nx.Graph(A)
 
 if options.visualize:
-    visualize_graph(X, pc_array)
+    if pc_array.shape[1] > 3:
+        visualize_graph_rgb(X, pc_array)
+    else:
+        visualize_graph_xyz(X, pc_array)
