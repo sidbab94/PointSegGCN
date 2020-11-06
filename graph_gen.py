@@ -24,6 +24,7 @@ parser.add_option('-s', dest='sort', action='store_true',
                   help='Pre-sort points according to viewpoint distance and rgb value')
 
 options, _ = parser.parse_args()
+np.random.seed(89)
 
 def get_nearest_indices(curr_index, all_points, roi_each=50):
     last_point_indx = all_points.shape[0] - 1
@@ -241,6 +242,7 @@ def visualize_graph_rgb(graph, array):
     :param array: Input point cloud array (coarsened)
     :return: Visualization of point cloud with graph network overlay
     """
+    mlab.figure(size=(1200, 800), bgcolor=(0, 0, 0))
     G = nx.convert_node_labels_to_integers(graph)
     xyz = array[:, :3]
     rgb = array[:, 3:]
@@ -274,6 +276,7 @@ def visualize_graph_rgb(graph, array):
     mlab.show()
 
 def visualize_graph_xyz(graph, array):
+    mlab.figure(size=(1200, 800), bgcolor=(0, 0, 0))
     G = nx.convert_node_labels_to_integers(graph)
     xyz = array
     scalars = np.array(list(G.nodes())) + 5
@@ -282,14 +285,14 @@ def visualize_graph_xyz(graph, array):
         xyz[:, 1],
         xyz[:, 2],
         scalars,
-        scale_factor=0.0085,
+        scale_factor=0.3,
         scale_mode="none",
-        colormap="Blues",
+        colormap="Reds",
         resolution=20,
     )
 
     pts.mlab_source.dataset.lines = np.array(list(G.edges()))
-    tube = mlab.pipeline.tube(pts, tube_radius=0.001)
+    tube = mlab.pipeline.tube(pts, tube_radius=0.08)
     mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
     pts.glyph.glyph.clamping = False
     pts.glyph.scale_mode = 'data_scaling_off'
@@ -313,56 +316,54 @@ def sort_pc(points):
     sorted = x_sorted[np.argsort(pc_reform[:, 3])]
     return sorted
 
+def main():
 
-np.random.seed(89)
-
-input_cloud_fmt = options.inputpc.split('.')[1]
-if input_cloud_fmt == 'pts':
-    pc_array = genfromtxt(options.inputpc, delimiter='')
-elif input_cloud_fmt == 'csv':
-    pc_array = genfromtxt(options.inputpc, delimiter=',')
-elif input_cloud_fmt == 'npy':
-    pc_array = np.load(options.inputpc)
-else:
-    raise Exception('Provide a supported point cloud format')
-N = pc_array.shape[0]
-NN = options.nearestN
-sample_size = round(options.ss * 0.01 * N)
-pc_array = pc_array[np.random.choice(N, sample_size, replace=False), :]
-if options.sort:
-    pc_array = sort_pc(pc_array)
-print('Total number of sampled points: ', pc_array.shape[0])
-pc_array_XYZ = pc_array[:, :3]
-
-points_dict = dict(enumerate(pc_array_XYZ.tolist()))
-G_start = time()
-G = Graph(numNodes=pc_array.shape[0])
-
-print('Graph construction elapsed time: ', time() - G_start)
-
-if options.gpu_en:
-    device = 'GPU'
-    import tensorflow.compat.v1 as tf
-    tf.disable_v2_behavior()
-    start = time()
-    index_pairs = get_neighbours_gpu(pc_array_XYZ, NN)
-else:
-    device = 'CPU'
-    start = time()
-    index_pairs = get_neighbours(pc_array_XYZ, NN, optim=options.optimal)
-print('NNS: Time elapsed in seconds for {} points: {}, using {}'.format(pc_array.shape[0], time()-start, device))
-
-for pair in index_pairs:
-    startindex = pair[0]
-    for endindex in pair[1]:
-        G.addEdge(startindex, endindex)
-
-A = G.adjacencyMatrix
-A = np.array(A)
-X = nx.Graph(A)
-
-if options.visualize:
-    if pc_array.shape[1] > 3:
-        visualize_graph_rgb(X, pc_array)
+    input_cloud_fmt = options.inputpc.split('.')[1]
+    if input_cloud_fmt == 'pts':
+        pc_array = genfromtxt(options.inputpc, delimiter='')
+    elif input_cloud_fmt == 'csv':
+        pc_array = genfromtxt(options.inputpc, delimiter=',')
+    elif input_cloud_fmt == 'npy':
+        pc_array = np.load(options.inputpc)
     else:
-        visualize_graph_xyz(X, pc_array)
+        raise Exception('Provide a supported point cloud format')
+    N = pc_array.shape[0]
+    NN = options.nearestN
+    sample_size = round(options.ss * 0.01 * N)
+    pc_array = pc_array[np.random.choice(N, sample_size, replace=False), :]
+    if options.sort:
+        pc_array = sort_pc(pc_array)
+    print('Total number of sampled points out of original {} points:  {}'.format(N, pc_array.shape[0]))
+    pc_array_XYZ = pc_array[:, :3]
+
+    if options.gpu_en:
+        device = 'GPU'
+        import tensorflow.compat.v1 as tf
+        tf.disable_v2_behavior()
+        start = time()
+        index_pairs = get_neighbours_gpu(pc_array_XYZ, NN)
+    else:
+        device = 'CPU'
+        start = time()
+        index_pairs = get_neighbours(pc_array_XYZ, NN, optim=options.optimal)
+    print('NNS: Time elapsed in seconds for {} points: {}, using {}'.format(pc_array.shape[0], time()-start, device))
+
+    G_start = time()
+    G = Graph(numNodes=pc_array.shape[0])
+    for pair in index_pairs:
+        startindex = pair[0]
+        for endindex in pair[1]:
+            G.addEdge(startindex, endindex)
+    A = G.adjacencyMatrix
+    A = np.array(A)
+    X = nx.Graph(A)
+    print('Time elapsed in seconds for graph construction: ', time() - G_start)
+
+    if options.visualize:
+        if pc_array.shape[1] > 4:
+            visualize_graph_rgb(X, pc_array)
+        else:
+            visualize_graph_xyz(X, pc_array)
+
+if __name__ == "__main__":
+    main()
