@@ -59,12 +59,6 @@ def kdtree(X, nn):
     _, nearest_ind = tree.query(X, k=nn+1)
     return nearest_ind[:, 1:].tolist()
 
-def cuda_tree(X, nn):
-    cuda_tree = CudaTree(X, leaf_size=4)
-    _, cu_indices = cuda_tree.query(X, n_neighbors=nn)
-    cu_indices = cu_indices.tolist()
-    return cu_indices
-
 def get_neighbours_gpu(points, nn):
     """
     TARGET DEVICE - GPU
