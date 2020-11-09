@@ -195,7 +195,7 @@ def visualize_graph_rgb(graph, array):
     :param array: Input point cloud array (coarsened)
     :return: Visualization of point cloud with graph network overlay
     """
-    mlab.figure(size=(1200, 800), bgcolor=(0, 0, 0))
+    mlab.figure(size=(1200, 800), bgcolor=(1, 1, 1))
     G = nx.convert_node_labels_to_integers(graph)
     xyz = array[:, :3]
     rgb = array[:, 3:]
