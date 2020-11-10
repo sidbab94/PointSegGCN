@@ -8,11 +8,11 @@ from mayavi import mlab
 from optparse import OptionParser
 
 parser = OptionParser()
-parser.add_option('--input', dest='inputpc', default='airplane.pts',
+parser.add_option('--input', dest='inputpc', default='sample.npy',
                   help='Provide input point cloud file in .pts format')
-parser.add_option('--NN', dest='nearestN', default=3, type='int',
+parser.add_option('--NN', dest='nearestN', default=1, type='int',
                   help='Provide number of nearest neighbours to process each point with')
-parser.add_option('--sample_size', dest='ss', default=2.0, type='float',
+parser.add_option('--sample_size', dest='ss', default=100.0, type='float',
                   help='Provide proportion of points (in %) to be randomly sampled from input distribution')
 parser.add_option('--nns_method', dest='searchmethod', default='knn',
                   help='Specify method to implement nearest neighbour search -- knn or kdtree?')
@@ -20,8 +20,6 @@ parser.add_option('-v', dest='visualize', action='store_true',
                   help='Enable visualization of graph constructed from input point cloud')
 parser.add_option('-o', dest='optimal', action='store_true',
                   help='Enable optimization of nearest neighbour search algorithm, in favour of performance')
-parser.add_option('-s', dest='sort', action='store_true',
-                  help='Pre-sort points according to viewpoint distance and rgb value')
 
 options, _ = parser.parse_args()
 np.random.seed(89)
@@ -29,32 +27,24 @@ np.random.seed(89)
 
 class NearestNodeSearch:
     def __init__(self, pointcloud, options):
-        self.points = pointcloud[:, :3]
-        self.points_w_rgb = pointcloud
-        self.nn = options.nearestN
+        self.points_alldims = pointcloud
         self.roisearch = options.optimal
-        self.sort = options.sort
-        self.nnsmode = options.searchmethod
-        if self.sort:
+        if self.roisearch:
             self.sortpoints()
+        self.points = self.points_alldims[:, :3]
+        self.N = self.points.shape[0]
+        self.nn = options.nearestN
+        self.nnsmode = options.searchmethod
+        self.adjacencyMatrix = np.zeros((self.N, self.N), dtype='uint8')
 
     def sortpoints(self):
-        points = self.points_w_rgb[np.random.choice(self.points.shape[0],
-                                                    round(0.07 * self.points.shape[0]),
-                                                    replace=False), :]
-        x_sorted = points[np.argsort(points[:, 0])]
-        x_sorted = x_sorted[:40000, :]
-        pc_xyz = x_sorted[:, :3]
-        pc_reform = np.empty((pc_xyz.shape[0], 4))
-        pc_reform[:, :3] = pc_xyz
-        pc_rgb = points[:, 3:-1]
-        for irgb in enumerate(pc_rgb[:10]):
-            color = irgb[1]
-            indx = irgb[0]
-            scalar = rgb_2_scalar_idx(color[0], color[1], color[2])
-            pc_reform[indx, 3] = scalar
-        self.points_w_rgb = x_sorted[np.argsort(pc_reform[:, 3])]
-        self.points = self.points_w_rgb[:, :3]
+        x_sorted = self.points_alldims[np.argsort(self.points_alldims[:, 0])]
+        x_sorted = x_sorted[:-round(0.05 * x_sorted.shape[0]), :]   # exclude last 5% of points along x-axis
+        if self.points_alldims.shape[0] > 50000:
+            Nsort = x_sorted.shape[0]
+            self.points_alldims = x_sorted[np.random.choice(Nsort, round(0.05 * Nsort), replace = False),:]
+        else:
+            self.points_alldims = x_sorted
 
     def kdtree(self):
         tree = KDTree(self.points)
@@ -62,53 +52,35 @@ class NearestNodeSearch:
         return nearest_ind[:, 1:].tolist()
 
     def get_neighbours(self):
-        # all indices from 0 to total num_points-1
         indices = np.arange(self.points.shape[0])
-        # pair of start point and end(neighbour) points in index format
-        pointpairs = []
 
         if self.nnsmode == 'kdtree':
             endpoint_indices = self.kdtree()
-            pointpairs = [list(i) for i in zip(indices, endpoint_indices)]
+            nn_indices = [list(i) for i in zip(indices, endpoint_indices)]
+            for pair in nn_indices:
+                i = pair[0]
+                for j in pair[1]:
+                    self.addEdges(i, j)
         else:
             list_of_points = list(self.points.tolist())
             for point in enumerate(self.points):
-                # current point index
                 self.curr_point_indx = point[0]
-                # current point coordinates in np array format
-                curr_point = np.array([point[1]])
-
-                # all points except current point
+                self.curr_point = np.array([point[1]])
                 if self.roisearch:
-                    targets = self.searchROI(radius=100)
+                    targets = self.searchROI(radius=1000)
+                    distances = cdist(targets, self.curr_point, metric='euclidean').flatten()
+                    nn_indices = np.argsort(distances)[1:self.nn + 1]
+                    nearest_points = list(targets.tolist()[i] for i in nn_indices)
+                    global_nn_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
+                    for i in range(len(global_nn_indices)):
+                        self.addEdges(self.curr_point_indx, global_nn_indices[i])
                 else:
-                    targets = self.points[indices != self.curr_point_indx, :]
+                    targets = self.points
+                    distances = cdist(targets, self.curr_point, metric='euclidean').flatten()
+                    nn_indices = np.argsort(distances)[1:self.nn + 1]
+                    for i in range(len(nn_indices)):
+                        self.addEdges(self.curr_point_indx, nn_indices[i])
 
-                # Compute euclidean distance between points using scipy
-                distances = cdist(targets, curr_point, metric='sqeuclidean').flatten().tolist()
-
-                # index -> coordinates map for target points
-                target_indx_dict = dict(enumerate(targets))
-                # index -> distances map
-                dist_indx_dict = dict(enumerate(distances))
-
-                # sorted distances in ascending order
-                sorted_distances = {k: v for k, v in sorted(dist_indx_dict.items(), key=lambda item: item[1])}
-                # nearest neighbour indices
-                nn_indices = list(sorted_distances.keys())[:self.nn]
-                assert len(nn_indices) == self.nn
-                # nearest points:       list
-                nearest_points = list(target_indx_dict[i].tolist() for i in nn_indices)
-                assert len(nearest_points) == self.nn
-                # current point
-                start = point[1].flatten()
-                # current point global index
-                startpoint_index = list_of_points.index(start.tolist())
-                # end point(s) global indices
-                endpoint_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
-                # start-end point global index pairs
-                pointpairs.extend([[startpoint_index, endpoint_indices]])
-        return pointpairs
 
     def searchROI(self, radius=100):
         last_point_indx = self.points.shape[0] - 1
@@ -119,41 +91,12 @@ class NearestNodeSearch:
             roi_bwd = n_bwd
         if n_fwd < radius:
             roi_fwd = n_fwd
-        roi_of_point = self.points[self.curr_point_indx - roi_bwd:self.curr_point_indx + roi_fwd + 1, :]
-        excl_point_indx = list(roi_of_point.tolist()).index(self.points[self.curr_point_indx, :].tolist())
-        roi_indices = np.arange(roi_of_point.shape[0])
-        target_points = roi_of_point[roi_indices != excl_point_indx, :]
+        target_points = self.points[self.curr_point_indx - roi_bwd:self.curr_point_indx + roi_fwd + 1, :]
         return target_points
 
-
-class Graph(object):
-    """
-    Graph constructor class
-    """
-
-    def __init__(self, numNodes):
-        # self.adjacencyMatrix = []  # 2D list
-        # for i in range(numNodes):
-        #     self.adjacencyMatrix.append([0 for i in range(numNodes)])
-        # self.numNodes = numNodes
-
-        self.adjacencyMatrix = np.empty((numNodes, numNodes), dtype='uint8')
-        self.numNodes = numNodes
-
-    def addEdge(self, start, end):
-        """
-
-        :param start: Start node global index
-        :param end: End node global index
-        :return: Modified adjacency matrix
-        """
+    def addEdges(self, start, end):
         self.adjacencyMatrix[start, end] = 1
-
-    def removeEdge(self, start, end):
-        if self.adjacencyMatrix[start, end] == 0:
-            print("There is no edge between %d and %d" % (start, end))
-        else:
-            self.adjacencyMatrix[start, end] = 0
+        self.adjacencyMatrix[end, start] = 1
 
     def containsEdge(self, start, end):
         if self.adjacencyMatrix[start, end] > 0:
@@ -161,8 +104,11 @@ class Graph(object):
         else:
             return False
 
-    def __len__(self):
-        return self.numNodes
+    def removeEdge(self, start, end):
+        if self.adjacencyMatrix[start, end] == 0:
+            print("There is no edge between %d and %d" % (start, end))
+        else:
+            self.adjacencyMatrix[start, end] = 0
 
 
 def create_8bit_rgb_lut():
@@ -176,7 +122,6 @@ def create_8bit_rgb_lut():
                      255 * np.ones((1, 256 ** 3)))).T
     return lut.astype('int32')
 
-
 def rgb_2_scalar_idx(r, g, b):
     """
 
@@ -186,7 +131,6 @@ def rgb_2_scalar_idx(r, g, b):
     :return: scalar index of input colour
     """
     return 256 ** 2 * r + 256 * g + b
-
 
 def visualize_graph_rgb(graph, array):
     """
@@ -228,7 +172,6 @@ def visualize_graph_rgb(graph, array):
 
     mlab.show()
 
-
 def visualize_graph_xyz(graph, array):
     mlab.figure(size=(1200, 800), bgcolor=(0, 0, 0))
     G = nx.convert_node_labels_to_integers(graph)
@@ -265,32 +208,25 @@ def main():
         raise Exception('Provide a supported point cloud format')
 
     N = pc_array.shape[0]
-    sample_size = round(options.ss * 0.01 * N)
-    pc_array = pc_array[np.random.choice(N, sample_size, replace=False), :]
-
-    pc_array_XYZ = pc_array[:, :3]
+    if options.ss != 100.0:
+        sample_size = round(options.ss * 0.01 * N)
+        pc_array = pc_array[np.random.choice(N, sample_size, replace=False), :]
     nns = NearestNodeSearch(pointcloud=pc_array, options=options)
+    nns_sample = nns.points_alldims
 
     start = time()
-    index_pairs = nns.get_neighbours()
-    print('NNS: Time elapsed in seconds for {} points: {}'.format(pc_array.shape[0], time() - start))
+    nns.get_neighbours()
+    A = nns.adjacencyMatrix
+    print('NNS Graph Construction: Time elapsed in seconds for {} points: {}'.format(nns.N, time() - start))
+    assert (A.transpose() == A).all()
 
-    G_start = time()
-    G = Graph(numNodes=pc_array.shape[0])
-    for pair in index_pairs:
-        startindex = pair[0]
-        for endindex in pair[1]:
-            G.addEdge(startindex, endindex)
-    A = G.adjacencyMatrix
-    A = np.array(A)
     X = nx.Graph(A)
-    print('Time elapsed in seconds for graph construction: ', time() - G_start)
 
     if options.visualize:
         if pc_array.shape[1] > 4:
-            visualize_graph_rgb(X, pc_array)
+            visualize_graph_rgb(X, nns_sample)
         else:
-            visualize_graph_xyz(X, pc_array)
+            visualize_graph_xyz(X, nns_sample)
 
 
 if __name__ == "__main__":
