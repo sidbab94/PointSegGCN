@@ -75,9 +75,9 @@ class voxelize:
         self.vox_zn = np.linspace(start=self.z_min - self.bound_buffer,
                                   stop=self.z_max + self.bound_buffer,
                                   num=round(div_factor / self.xz_factor))
-        self.vox_zl = round(self.vox_zn[1] - self.vox_zn[0], 5)
+        self.vox_zl = round(self.vox_zn[-1] - self.vox_zn[0], 5)
 
-    def get_voxels(self):
+    def get_voxels(self, occ_thresh=5e-3):
         self.all_voxels = np.empty((1, 6))
         for i in range(len(self.vox_xn)):
             for j in range(len(self.vox_yn)):
@@ -88,15 +88,42 @@ class voxelize:
                     self.all_voxels = np.concatenate((self.all_voxels, curr_bounds), axis=0)
 
         self.occ_voxels = np.empty((1, 6))
+        self.voxel_points = []
+
         for voxel in self.all_voxels:
             x_occ = self.xyz[(voxel[0] <= self.xyz[:, 0]) & (voxel[1] > self.xyz[:, 0])]
             if x_occ.size != 0:
                 xy_occ = x_occ[(voxel[2] <= x_occ[:, 1]) & (voxel[3] > x_occ[:, 1])]
                 if xy_occ.size != 0:
                     xyz_occ = xy_occ[(voxel[4] <= xy_occ[:, 2]) & (voxel[5] > xy_occ[:, 2])]
-                    if xyz_occ.shape[0] >= round(6e-3 * self.N):
+                    if xyz_occ.shape[0] >= round(occ_thresh * self.N):
+                        self.voxel_points.append(xyz_occ)
                         self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
+
+    def vox_wpoints_vis(self):
+        for vox_id in range(len(self.voxel_points)):
+            vox_pts = self.voxel_points[vox_id]
+            pts = mlab.points3d(
+                vox_pts[:, 0],
+                vox_pts[:, 1],
+                vox_pts[:, 2],
+                scale_factor=0.1,
+                scale_mode="none",
+                colormap="Blues",
+                resolution=20)
+            xmin = np.min(vox_pts[:, 0])
+            xmax = np.max(vox_pts[:, 0])
+            ymin = np.min(vox_pts[:, 1])
+            ymax = np.max(vox_pts[:, 1])
+            zmin = np.min(vox_pts[:, 2])
+            zmax = np.max(vox_pts[:, 2])
+            pad = np.array(((xmax-xmin) * 0.01, (ymax-ymin) * 0.01, (ymax-ymin) * 0.01))
+            mlab_plt_cube(xmin - pad[0], xmax + pad[0],
+                          ymin - pad[1], ymax + pad[1],
+                          zmin - pad[2], zmax - pad[2])
+        mlab.show()
+
 
     def vox_overlay_vis(self):
         for voxel in self.occ_voxels:  # [np.random.choice(self.occ_voxels.shape[0], 10, replace=False), :]:
@@ -105,16 +132,22 @@ class voxelize:
             self.xyz[:, 0],
             self.xyz[:, 1],
             self.xyz[:, 2],
-            scale_factor=0.003,
+            scale_factor=0.1,
             scale_mode="none",
             colormap="Blues",
             resolution=20)
+        pts.glyph.glyph.clamping = False
+        pts.glyph.scale_mode = 'data_scaling_off'
         mlab.show()
 
 
-pc_array = np.genfromtxt('airplane.pts', delimiter='')
+# pc_array = np.genfromtxt('samples/car.pts', delimiter='')
+pc_array = np.load('samples/vkitti3d_01.npy')
+pc_array = pc_array[np.random.choice(pc_array.shape[0], round(0.1 * pc_array.shape[0]), replace=False), :]
+
 start = time()
-vox = voxelize(pc_array, div_factor=15)
-vox.get_voxels()
+vox = voxelize(pc_array, div_factor=20)
+vox.get_voxels(occ_thresh=9e-3)
 print('Voxelization -- Time elapsed in seconds: ', round(time()-start, 5))
-vox.vox_overlay_vis()
+vox.vox_wpoints_vis()
+# vox.vox_overlay_vis()
