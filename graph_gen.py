@@ -16,7 +16,6 @@ def sortpoints(points):
 class NearestNodeSearch:
     def __init__(self, pointcloud, options):
         self.points_alldims = pointcloud
-        self.optimal = options.optimal
         self.points = self.points_alldims[:, :3]
         self.N = self.points.shape[0]
         self.nn = options.nearestN
