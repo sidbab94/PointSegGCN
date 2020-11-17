@@ -25,26 +25,27 @@ options, _ = parser.parse_args()
 np.random.seed(89)
 
 
+def sortpoints(points):
+    x_sorted = points[np.argsort(points[:, 0])]
+    x_sorted = x_sorted[:-round(0.05 * x_sorted.shape[0]), :]  # exclude last 5% of points along x-axis
+    if points.shape[0] > 50000:
+        Nsort = x_sorted.shape[0]
+        points = x_sorted[np.random.choice(Nsort, round(0.05 * Nsort), replace=False), :]
+    else:
+        points = x_sorted
+    return points
+
 class NearestNodeSearch:
     def __init__(self, pointcloud, options):
         self.points_alldims = pointcloud
-        self.roisearch = options.optimal
-        if self.roisearch:
-            self.sortpoints()
+        self.optimal = options.optimal
+        if self.optimal:
+            self.points_alldims = sortpoints(self.points_alldims)
         self.points = self.points_alldims[:, :3]
         self.N = self.points.shape[0]
         self.nn = options.nearestN
         self.nnsmode = options.searchmethod
         self.adjacencyMatrix = np.zeros((self.N, self.N), dtype='uint8')
-
-    def sortpoints(self):
-        x_sorted = self.points_alldims[np.argsort(self.points_alldims[:, 0])]
-        x_sorted = x_sorted[:-round(0.05 * x_sorted.shape[0]), :]   # exclude last 5% of points along x-axis
-        if self.points_alldims.shape[0] > 50000:
-            Nsort = x_sorted.shape[0]
-            self.points_alldims = x_sorted[np.random.choice(Nsort, round(0.05 * Nsort), replace = False),:]
-        else:
-            self.points_alldims = x_sorted
 
     def kdtree(self):
         tree = KDTree(self.points)
@@ -66,20 +67,20 @@ class NearestNodeSearch:
             for point in enumerate(self.points):
                 self.curr_point_indx = point[0]
                 self.curr_point = np.array([point[1]])
-                if self.roisearch:
-                    targets = self.searchROI(radius=1000)
-                    distances = cdist(targets, self.curr_point, metric='euclidean').flatten()
-                    nn_indices = np.argsort(distances)[1:self.nn + 1]
-                    nearest_points = list(targets.tolist()[i] for i in nn_indices)
-                    global_nn_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
-                    for i in range(len(global_nn_indices)):
-                        self.addEdges(self.curr_point_indx, global_nn_indices[i])
-                else:
-                    targets = self.points
-                    distances = cdist(targets, self.curr_point, metric='euclidean').flatten()
-                    nn_indices = np.argsort(distances)[1:self.nn + 1]
-                    for i in range(len(nn_indices)):
-                        self.addEdges(self.curr_point_indx, nn_indices[i])
+                # if self.roisearch:
+                #     targets = self.searchROI(radius=1000)
+                #     distances = cdist(targets, self.curr_point, metric='euclidean').flatten()
+                #     nn_indices = np.argsort(distances)[1:self.nn + 1]
+                #     nearest_points = list(targets.tolist()[i] for i in nn_indices)
+                #     global_nn_indices = [list_of_points.index(nearest_points[i]) for i in range(len(nearest_points))]
+                #     for i in range(len(global_nn_indices)):
+                #         self.addEdges(self.curr_point_indx, global_nn_indices[i])
+                # else:
+                targets = self.points
+                distances = cdist(targets, self.curr_point, metric='euclidean').flatten()
+                nn_indices = np.argsort(distances)[1:self.nn + 1]
+                for i in range(len(nn_indices)):
+                    self.addEdges(self.curr_point_indx, nn_indices[i])
 
 
     def searchROI(self, radius=100):
