@@ -1,9 +1,8 @@
 import numpy as np
-
+import math
 
 def sample(points, thresh=1000):
     return points[np.random.choice(points.shape[0], thresh, replace=False), :]
-
 
 class voxelize:
     def __init__(self, pc_array, div_factor=15):
@@ -23,6 +22,10 @@ class voxelize:
         x_length = x_max - x_min
         y_length = y_max - y_min
         z_length = z_max - z_min
+        self.lengths = [x_length, y_length, z_length]
+        self.v_scaleup = 0
+        self.order_of_mag()
+
         xy_factor = x_length / y_length
         xz_factor = x_length / z_length
 
@@ -61,3 +64,8 @@ class voxelize:
                                 self.voxel_points.append(sample(xyz_occ))
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
+
+    def order_of_mag(self):
+        o = np.array([math.floor(math.log10(length)) for length in self.lengths]) >= 1
+        if np.any(o):
+            self.v_scaleup = 1
