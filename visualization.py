@@ -57,15 +57,15 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
     faces = cube_faces(xmin, xmax, ymin, ymax, zmin, zmax)
     for grid in faces:
         x, y, z = grid
-        mlab.mesh(x, y, z, opacity=0.2, color=(0.1, 0.2, 0.3))
+        mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
 def show_voxel(vox_pts, graph, vis_scale):
     if vis_scale == 1:
         point_size = 0.2
         edge_size = 0.02
     else:
-        point_size = 0.01
-        edge_size = 0.003
+        point_size = 0.005
+        edge_size = 0.001
 
     G = nx.convert_node_labels_to_integers(graph)
     if vox_pts.shape[1] > 3:
@@ -91,7 +91,7 @@ def show_voxel(vox_pts, graph, vis_scale):
             scalars,
             scale_factor=point_size,
             scale_mode="none",
-            colormap="Reds",
+            colormap="Blues",
             resolution=20)
 
     pts.mlab_source.dataset.lines = np.array(list(G.edges()))
