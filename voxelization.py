@@ -1,7 +1,7 @@
 import numpy as np
 import math
 
-def sample(points, thresh=1000):
+def sample(points, thresh=2000):
     return points[np.random.choice(points.shape[0], thresh, replace=False), :]
 
 class voxelize:
@@ -60,7 +60,7 @@ class voxelize:
                             if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 1000:
                                 self.voxel_points.append(xyz_occ)
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
-                            elif xyz_occ.shape[0] > 1000:
+                            elif xyz_occ.shape[0] > 2000:
                                 self.voxel_points.append(sample(xyz_occ))
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
