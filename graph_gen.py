@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
+import open3d as o3d
 import networkx as nx
 
 def sortpoints(points):
@@ -27,11 +28,22 @@ class NearestNodeSearch:
         _, nearest_ind = search.kneighbors(self.points)
         return nearest_ind[:, 1:].tolist()
 
+    def kdtree_flann(self):
+        pcd = o3d.geometry.PointCloud()
+        indices = []
+        pcd.points = o3d.utility.Vector3dVector(self.points)
+        tree = o3d.geometry.KDTreeFlann(pcd)
+        for p in pcd.points:
+            [_, idx, _] = tree.search_knn_vector_3d(p, 3)
+            indices.append(list(idx[1:]))
+        return indices
+
     def get_neighbours(self):
         indices = np.arange(self.points.shape[0])
 
         if self.nnsmode == 'kdtree':
             endpoint_indices = self.kdtree()
+            # endpoint_indices = self.kdtree_flann()
             nn_indices = [list(i) for i in zip(indices, endpoint_indices)]
             for pair in nn_indices:
                 i = pair[0]
