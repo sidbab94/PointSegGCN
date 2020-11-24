@@ -44,6 +44,7 @@ class voxelize:
 
         self.occ_voxels = np.empty((1, 6))
         self.voxel_points = []
+        self.pcount = 0
 
     def get_voxels(self, occ_thresh=5e-3):
         for i in range(len(self.vox_X)):
@@ -59,9 +60,11 @@ class voxelize:
                             xyz_occ = xy_occ[(voxel[4] < xy_occ[:, 2]) & (voxel[5] > xy_occ[:, 2])]
                             if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 1000:
                                 self.voxel_points.append(xyz_occ)
+                                self.pcount += xyz_occ.shape[0]
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
                             elif xyz_occ.shape[0] > 1000:
                                 self.voxel_points.append(sample(xyz_occ))
+                                self.pcount += sample(xyz_occ).shape[0]
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
 
