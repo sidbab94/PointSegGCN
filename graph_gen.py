@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import cdist
-from sklearn.neighbors import KDTree
+from sklearn.neighbors import NearestNeighbors
 import networkx as nx
 
 def sortpoints(points):
@@ -23,8 +23,8 @@ class NearestNodeSearch:
         self.adjacencyMatrix = np.zeros((self.N, self.N), dtype='uint8')
 
     def kdtree(self):
-        tree = KDTree(self.points)
-        _, nearest_ind = tree.query(self.points, k=self.nn + 1)
+        search = NearestNeighbors(n_neighbors=self.nn + 1, algorithm='kd_tree').fit(self.points)
+        _, nearest_ind = search.kneighbors(self.points)
         return nearest_ind[:, 1:].tolist()
 
     def get_neighbours(self):
