@@ -36,7 +36,7 @@ options, _ = parser.parse_args()
 np.random.seed(89)
 
 
-def construct_vox_graph(vox_pc_map, N, vis_scale, visual=False):
+def construct_vox_graph(vox_pc_map, vis_scale, visual=False):
     elapsed = 0.0
     for vox_id in range(len(vox_pc_map)):
         vox_start = time()
@@ -53,7 +53,7 @@ def construct_vox_graph(vox_pc_map, N, vis_scale, visual=False):
         print('     Visualizing...')
         mlab.show()
     print('----------------------------------------------------------------------------------')
-    print('Time elapsed for {} voxel(s) and {} points: {} seconds'.format(len(vox_pc_map), N, round(elapsed, 5)))
+    print('Time elapsed for {} voxel(s): {} seconds'.format(len(vox_pc_map), round(elapsed, 5)))
 
 
 def main():
@@ -80,12 +80,14 @@ def main():
     grid = vox.voxelize(pc, options.div_factor)
     grid.get_voxels()
     vis_scale = grid.v_scaleup
+    pointcount = grid.pcount
+    print('     No. of points downsampled from {} to {}.'.format(pc.shape[0], pointcount))
     print('     Voxelization done.')
     vox_pc_map = grid.voxel_points
     visual = options.visualize
     print('----------------------------------------------------------------------------------')
     print('2.   Constructing graphs for voxels...')
-    construct_vox_graph(vox_pc_map, pc.shape[0], vis_scale, visual=visual)
+    construct_vox_graph(vox_pc_map, vis_scale, visual=visual)
     print('----------------------------------------------------------------------------------')
     print('==================================================================================')
 
