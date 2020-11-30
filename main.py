@@ -40,10 +40,12 @@ def construct_vox_graph(vox_pc_map, vis_scale, visual=False):
     elapsed = 0.0
     for vox_id in range(len(vox_pc_map)):
         vox_start = time()
+
         vox_pts = vox_pc_map[vox_id]
-        nns = graph.NearestNodeSearch(pointcloud=vox_pts, options=options)
-        nns.get_neighbours()
-        G = nns.graph
+        # nns = graph.NearestNodeSearch(pointcloud=vox_pts, options=options)
+        # nns.get_neighbours()
+        # G = nns.graph
+        G = graph.adjacency(vox_pts, nn=options.nearestN)
         elapsed = (time() - vox_start) + elapsed
         if vox_id == len(vox_pc_map) - 1:
             print('     Graph construction done.')
