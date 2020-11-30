@@ -2,6 +2,8 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
 import networkx as nx
+import scipy
+
 
 def sortpoints(points):
     x_sorted = points[np.argsort(points[:, 0])]
@@ -12,6 +14,37 @@ def sortpoints(points):
     else:
         points = x_sorted
     return points
+
+def kdtree(points, nn):
+    search = NearestNeighbors(n_neighbors=nn, algorithm='kd_tree').fit(points)
+    dist, idx = search.kneighbors(points)
+    return dist, idx
+
+def adjacency(points, nn):
+    dist, idx = kdtree(points, nn)
+    M, k = dist.shape
+    assert M, k == idx.shape
+    assert dist.min() >= 0
+
+    # Weights.
+    sigma2 = np.mean(dist[:, -1])**2
+    dist = np.exp(- dist**2 / sigma2)
+    # Weight matrix.
+    I = np.arange(0, M).repeat(k)
+    J = idx.reshape(M*k)
+    V = dist.reshape(M*k)
+    W = scipy.sparse.coo_matrix((V, (I, J)), shape=(M, M))
+    # No self-connections.
+    W.setdiag(0)
+
+    # Non-directed graph.
+    bigger = W.T > W
+    W = W - W.multiply(bigger) + W.T.multiply(bigger)
+
+    assert W.nnz % 2 == 0
+    assert np.abs(W - W.T).mean() < 1e-10
+    assert type(W) is scipy.sparse.csr.csr_matrix
+    return nx.from_scipy_sparse_matrix(W)
 
 class NearestNodeSearch:
     def __init__(self, pointcloud, options):
