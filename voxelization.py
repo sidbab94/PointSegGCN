@@ -28,7 +28,6 @@ class voxelize:
 
         xy_factor = x_length / y_length
         xz_factor = x_length / z_length
-
         self.vox_X = np.linspace(start=x_min,
                                  stop=x_max,
                                  num=div_factor)
@@ -39,7 +38,7 @@ class voxelize:
         self.vox_yl = round(self.vox_Y[1] - self.vox_Y[0], 5)
         self.vox_Z = np.linspace(start=z_min,
                                  stop=z_max,
-                                 num=round(div_factor / xz_factor))
+                                 num=round(div_factor / xz_factor)+1)
         self.vox_zl = round(self.vox_Z[-1] - self.vox_Z[0], 5)
 
         self.occ_voxels = np.empty((1, 6))
@@ -58,13 +57,14 @@ class voxelize:
                         xy_occ = x_occ[(voxel[2] < x_occ[:, 1]) & (voxel[3] > x_occ[:, 1])]
                         if xy_occ.size != 0:
                             xyz_occ = xy_occ[(voxel[4] < xy_occ[:, 2]) & (voxel[5] > xy_occ[:, 2])]
-                            if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 1000:
+                            if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 20000:
                                 self.voxel_points.append(xyz_occ)
                                 self.pcount += xyz_occ.shape[0]
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
-                            elif xyz_occ.shape[0] > 1000:
-                                self.voxel_points.append(sample(xyz_occ))
-                                self.pcount += sample(xyz_occ).shape[0]
+                            elif xyz_occ.shape[0] > 20000:
+                                downsampled = sample(xyz_occ, thresh=20000)
+                                self.voxel_points.append(downsampled)
+                                self.pcount += downsampled.shape[0]
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
 
