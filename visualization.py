@@ -61,14 +61,14 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
 
 def show_voxel(vox_pts, graph, vis_scale):
     if vis_scale == 1:
-        point_size = 0.2
+        point_size = 0.1#0.2
         edge_size = 0.02
     else:
         point_size = 0.005
         edge_size = 0.001
 
     G = nx.convert_node_labels_to_integers(graph)
-    if vox_pts.shape[1] > 3:
+    if vox_pts.shape[1] > 6:
         rgb = vox_pts[:, 3:]
         scalars = np.zeros((rgb.shape[0],))
         for (kp_idx, kp_c) in enumerate(rgb):
@@ -98,7 +98,7 @@ def show_voxel(vox_pts, graph, vis_scale):
     tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
     mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
 
-    if vox_pts.shape[1] > 3:
+    if vox_pts.shape[1] > 6:
         pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
         pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
         pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
