@@ -16,6 +16,7 @@ l2_reg = 5e-4    # Regularization rate for l2
 
 # Load data
 data = MNIST()
+print(data)
 
 # The adjacency matrix is stored as an attribute of the dataset.
 # Create filter for GCN and convert to sparse tensor.
@@ -86,6 +87,8 @@ for batch in loader_tr:
 
     # Training step
     x, y = batch
+    print(x[0].shape)
+    print()
     l, a = model.train_on_batch([x, adj], y)
     results_tr.append((l, a))
 
