@@ -13,7 +13,7 @@ from preprocess import Plot, load_label_kitti
 parser = OptionParser()
 parser.add_option('--input', dest='inputpc', default='samples/testpc.csv',
                   help='Provide input point cloud file in supported format (.pts, .csv, .npy) '
-                       '** DEFAULT: samples/vkitti3d_01.npy')
+                       '** DEFAULT: samples/testpc.csv')
 parser.add_option('--NN', dest='nearestN', default=2, type='int',
                   help='Provide number of nearest neighbours to process each point with. '
                        ' ** DEFAULT: 2')
@@ -29,7 +29,9 @@ parser.add_option('--vox_factor', dest='div_factor', default=15, type='int',
 parser.add_option('--vox_thresh', dest='occ_thresh', default=5e-3, type='float',
                   help='Specify threshold as factor of original point cloud size, below which voxels would be ignored'
                        ' ** DEFAULT: 9e-3')
-parser.add_option('-v', dest='visualize', action='store_true',
+parser.add_option('--vp', dest='visualize_pc', action='store_true',
+                  help='Enable visualization of down-sampled point cloud')
+parser.add_option('--vg', dest='visualize_graphs', action='store_true',
                   help='Enable visualization of graph constructed from input point cloud')
 parser.add_option('-o', dest='optimal', action='store_true',
                   help='Enable optimization of nearest neighbour search algorithm, by pre-sorting points')
@@ -37,7 +39,8 @@ parser.add_option('-o', dest='optimal', action='store_true',
 options, _ = parser.parse_args()
 np.random.seed(89)
 
-label_path = 'D:/SemanticKITTI/dataset/sequences/00/labels/000000.label'
+label_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/labels/000000.label'
+# label_path = 'D:/SemanticKITTI/dataset/sequences/00/labels/000000.label'
 DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
 remap_dict_val = DATA["learning_map"]
 max_key = max(remap_dict_val.keys())
@@ -45,7 +48,7 @@ remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
 remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
 labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
 
-def construct_vox_graph(vox_pc_map, vis_scale, visual=False):
+def construct_vox_graph(vox_pc_map, vis_scale, vis_pc=False, vis_graph=False):
     elapsed = 0.0
     all_pts = np.empty((1, 3))
     all_lbls = np.empty((1,))
@@ -53,24 +56,27 @@ def construct_vox_graph(vox_pc_map, vis_scale, visual=False):
         vox_start = time()
 
         vox_pts = vox_pc_map[vox_id]
-        vox_pts_ids = vox_pts[:, -1].astype('int')
-        vox_labels = labels[vox_pts_ids]
-        all_pts = np.concatenate((all_pts, vox_pts[:, :3]))
-        all_lbls = np.concatenate((all_lbls, vox_labels))
+        # vox_pts_ids = vox_pts[:, -1].astype('int')
+        # vox_labels = labels[vox_pts_ids]
+        # all_pts = np.concatenate((all_pts, vox_pts[:, :3]))
+        # all_lbls = np.concatenate((all_lbls, vox_labels))
         # nns = graph.NearestNodeSearch(pointcloud=vox_pts, options=options)
         # nns.get_neighbours()
         # G = nns.graph
         # Plot.draw_pc_sem_ins(pc_xyz=vox_pts, pc_sem_ins=vox_labels)
 
         G = graph.adjacency(vox_pts, nn=options.nearestN)
+
         elapsed = (time() - vox_start) + elapsed
         if vox_id == len(vox_pc_map) - 1:
             print('     Graph construction done.')
-        # if visual:
-        #     show_voxel(vox_pts, G, vis_scale)
-    if visual:
-        print('     Visualizing...')
-        # mlab.show()
+        if vis_graph:
+            show_voxel(vox_pts[:, :3], G, vis_scale)
+    if vis_graph:
+        print('     Visualizing graphs...')
+        mlab.show()
+    if vis_pc:
+        print('     Visualizing downsampled point cloud...')
         Plot.draw_pc_sem_ins(pc_xyz=all_pts, pc_sem_ins=all_lbls)
     print('----------------------------------------------------------------------------------')
     print('Time elapsed for {} voxel(s): {} seconds'.format(len(vox_pc_map), round(elapsed, 5)))
@@ -92,7 +98,6 @@ def main():
     pc = pc[:, :3]
     pc = np.insert(pc, 3, np.arange(start=0, stop=pc.shape[0]), axis=1)
 
-
     N = pc.shape[0]
     if options.ss != 100.0:
         sample_size = round(options.ss * 0.01 * N)
@@ -107,13 +112,16 @@ def main():
     grid.get_voxels()
     vis_scale = grid.v_scaleup
     pointcount = grid.pcount
+    act_res = round((pointcount/pc.shape[0])*100, 2)
     print('     No. of points downsampled from {} to {}.'.format(pc.shape[0], pointcount))
+    print('     Reduced to {}% of original density.'.format(act_res))
     print('     Voxelization done.')
     vox_pc_map = grid.voxel_points
-    visual = options.visualize
+    vis_pc = options.visualize_pc
+    vis_graph = options.visualize_graphs
     print('----------------------------------------------------------------------------------')
     print('2.   Constructing graphs for voxels...')
-    construct_vox_graph(vox_pc_map, vis_scale, visual=visual)
+    construct_vox_graph(vox_pc_map, vis_scale, vis_pc=vis_pc, vis_graph=vis_graph)
     print('----------------------------------------------------------------------------------')
     print('==================================================================================')
 
