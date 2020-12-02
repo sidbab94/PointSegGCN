@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
-from sklearn.neighbors import KDTree
 import networkx as nx
 import scipy
 
@@ -47,7 +46,6 @@ def show(pts, graph):
 
 def adjacency(points, nn):
     dist, idx = kdtree(points[:, :3], nn)
-    # print(idx.shape, type(idx))
     M, k = dist.shape
     assert M, k == idx.shape
     assert dist.min() >= 0
