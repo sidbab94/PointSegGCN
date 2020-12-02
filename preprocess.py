@@ -83,7 +83,6 @@ class Plot:
             ins_colors = plot_colors
         else:
             ins_colors = Plot.random_colors(len(np.unique(pc_sem_ins)) + 1, seed=2)
-
         ##############################
         sem_ins_labels = np.unique(pc_sem_ins)
         sem_ins_bbox = []
@@ -118,27 +117,32 @@ class Plot:
 
 
 
-# DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
-# remap_dict_val = DATA["learning_map"]
-# # print(remap_dict_val)
-# max_key = max(remap_dict_val.keys())
-# # print(max_key)
-# remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
-# # print(remap_lut_val)
-# remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
-# # print(remap_lut_val)
-#
+DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
+remap_dict_val = DATA["learning_map"]
+# print(remap_dict_val)
+max_key = max(remap_dict_val.keys())
+# print(max_key)
+remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
+# print(remap_lut_val)
+remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
+# print(remap_lut_val)
+cmap = list(DATA['color_map'].values())
 # base_path = 'D:/SemanticKITTI/dataset/sequences/'
 # label_path = 'D:/SemanticKITTI/dataset/sequences/00/labels/000000.label'
 # pc_path = 'D:/SemanticKITTI/dataset/sequences/00/velodyne/000000.bin'
-#
-# cloud = read_bin_velodyne(pc_path)
-# labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
-#
+base_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/'
+label_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/labels/000000.label'
+pc_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/velodyne/000000.bin'
+
+cloud = read_bin_velodyne(pc_path)
+labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
+cmap_labels = list(cmap[i] for i in np.unique(labels))
+
+
 # print(labels.shape)
 # print(cloud.shape)
-#
-# train, val, test = get_file_list(base_path)
-# print(len(train), len(val), len(test))
-#
-# Plot.draw_pc_sem_ins(cloud, labels)
+
+train, val, test = get_file_list(base_path)
+print(len(train), len(val), len(test))
+
+# Plot.draw_pc_sem_ins(cloud, labels, plot_colors=cmap_labels)
