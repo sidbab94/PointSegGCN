@@ -1,6 +1,11 @@
 import numpy as np
 from mayavi import mlab
 import networkx as nx
+import yaml
+
+DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
+rgb_map = np.array(list(DATA['color_map'].values()))
+# rgb_map[:,[0, 2]] = rgb_map[:,[2, 0]]
 
 
 def create_8bit_rgb_lut():
@@ -59,6 +64,39 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
         x, y, z = grid
         mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
+def show_voxel_wlabels(vox_pts, vox_lbls, graph, vis_scale):
+    if vis_scale == 1:
+        point_size = 0.1#0.2
+        edge_size = 0.02
+    else:
+        point_size = 0.005
+        edge_size = 0.001
+    G = nx.convert_node_labels_to_integers(graph)
+
+    rgb = rgb_map[vox_lbls]
+    scalars = np.zeros((rgb.shape[0],))
+    for (kp_idx, kp_c) in enumerate(rgb):
+        scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
+    rgb_lut = create_8bit_rgb_lut()
+    pts = mlab.points3d(
+        vox_pts[:, 0],
+        vox_pts[:, 1],
+        vox_pts[:, 2],
+        scalars,
+        scale_factor=point_size,
+        scale_mode="none",
+        resolution=20)
+    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
+    tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
+    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+
+    pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
+    pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
+    pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
+
+    pts.glyph.scale_mode = 'data_scaling_off'
+
+
 def show_voxel(vox_pts, graph, vis_scale):
     if vis_scale == 1:
         point_size = 0.1#0.2
@@ -68,8 +106,9 @@ def show_voxel(vox_pts, graph, vis_scale):
         edge_size = 0.001
 
     G = nx.convert_node_labels_to_integers(graph)
-    if vox_pts.shape[1] > 6:
+    if vox_pts.shape[1] > 5:
         rgb = vox_pts[:, 3:]
+        # print(rgb[:5, :])
         scalars = np.zeros((rgb.shape[0],))
         for (kp_idx, kp_c) in enumerate(rgb):
             scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
@@ -91,7 +130,7 @@ def show_voxel(vox_pts, graph, vis_scale):
             scalars,
             scale_factor=point_size,
             scale_mode="none",
-            colormap="Blues",
+            colormap="binary",
             resolution=20)
 
     pts.mlab_source.dataset.lines = np.array(list(G.edges()))
