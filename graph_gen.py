@@ -4,15 +4,28 @@ from sklearn.neighbors import NearestNeighbors
 import networkx as nx
 import scipy
 
-def sortpoints(points):
-    x_sorted = points[np.argsort(points[:, 0])]
-    x_sorted = x_sorted[:-round(0.05 * x_sorted.shape[0]), :]  # exclude last 5% of points along x-axis
-    if points.shape[0] > 50000:
-        Nsort = x_sorted.shape[0]
-        points = x_sorted[np.random.choice(Nsort, round(0.05 * Nsort), replace=False), :]
-    else:
-        points = x_sorted
-    return points
+from scipy.sparse import coo_matrix
+
+def maskwlabels(points, plabels):
+    assert points.shape[0] == plabels.shape[0]
+    N = plabels.shape[0]
+    adj = np.zeros((N, N), dtype='uint8')
+
+    for i in range(N):
+        curr_label = plabels[i]
+        idx = np.argwhere(plabels == curr_label)
+        adj[i, idx] = 1
+    return adj
+
+
+def color_adj(dist_adj, labels):
+    n_dist_adj = dist_adj
+    nz_arr = np.array(n_dist_adj.nonzero()).T
+    for nn_set in nz_arr:
+        nn_labels = [labels[i] for i in nn_set]
+        if len(set(nn_labels)) != 1:
+            n_dist_adj[nn_set[0], nn_set[1]] = 0
+    return n_dist_adj
 
 def kdtree(points, nn):
     search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
@@ -21,7 +34,7 @@ def kdtree(points, nn):
 
 def kdgraph(points, nn):
     search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points[:, :3])
-    adj = search.kneighbors_graph(points[:, :3], mode='distance')
+    adj = search.kneighbors_graph(points[:, :3], mode='connectivity')
     return adj
 
 def show(pts, graph):
@@ -44,7 +57,7 @@ def show(pts, graph):
     pts.glyph.scale_mode = 'data_scaling_off'
 
 
-def adjacency(points, nn):
+def adjacency(points, nn, labels):
     dist, idx = kdtree(points[:, :3], nn)
     M, k = dist.shape
     assert M, k == idx.shape
@@ -68,22 +81,34 @@ def adjacency(points, nn):
     assert W.nnz % 2 == 0
     assert np.abs(W - W.T).mean() < 1e-10
     assert type(W) is scipy.sparse.csr.csr_matrix
-    return nx.from_scipy_sparse_matrix(W)
 
-# from mayavi import mlab
-# import voxelization as vox
-# from visualization import show_voxel
-# pc = np.genfromtxt('samples/airplane.pts', delimiter='')
-# # g = adjacency(pc, 2)
-# grid = vox.voxelize(pc, 15)
-# grid.get_voxels()
-# vox_pc_map = grid.voxel_points
-# for vox_id in range(len(vox_pc_map)):
-#     vox_pts = vox_pc_map[vox_id]
-#     g = adjacency(vox_pts, 2)
-#     show_voxel(vox_pts, g, vis_scale=0)
-# mlab.show()
+    # Modify wrt node colour information
+    # W = color_adj(W, labels)
+    color_mask = maskwlabels(points, labels)
+    W = np.multiply(W.toarray(), color_mask)
 
+    # W = scipy.sparse.csr_matrix(W)
+    return nx.from_numpy_array(W)
+    # return nx.from_scipy_sparse_matrix(W)
+
+# import tensorflow as tf
+# def matmul_gpu(A, B):
+#     if tf.config.experimental.list_physical_devices("GPU"):
+#         with tf.device("/GPU:0"):  # Or GPU:1 for the 2nd GPU, GPU:2 for the 3rd etc.
+#             c = tf.matmul(A, B)
+#             assert c.device.endswith("GPU:0")
+#     return c.numpy()
+
+
+def sortpoints(points):
+    x_sorted = points[np.argsort(points[:, 0])]
+    x_sorted = x_sorted[:-round(0.05 * x_sorted.shape[0]), :]  # exclude last 5% of points along x-axis
+    if points.shape[0] > 50000:
+        Nsort = x_sorted.shape[0]
+        points = x_sorted[np.random.choice(Nsort, round(0.05 * Nsort), replace=False), :]
+    else:
+        points = x_sorted
+    return points
 
 class NearestNodeSearch:
     def __init__(self, pointcloud, options):
@@ -97,7 +122,6 @@ class NearestNodeSearch:
     def kdtree(self):
         search = NearestNeighbors(n_neighbors=self.nn + 1, algorithm='kd_tree').fit(self.points)
         _, nearest_ind = search.kneighbors(self.points)
-        print(nearest_ind[:, 1:].shape)
         return nearest_ind[:, 1:].tolist()
 
     def get_neighbours(self):
@@ -139,3 +163,36 @@ class NearestNodeSearch:
             print("There is no edge between %d and %d" % (start, end))
         else:
             self.adjacencyMatrix[start, end] = 0
+
+if __name__ == "__main__":
+    # from mayavi import mlab
+    # import voxelization as vox
+    # from visualization import show_voxel
+    # pc = np.genfromtxt('samples/airplane.pts', delimiter='')
+    # # g = adjacency(pc, 2)
+    # grid = vox.voxelize(pc, 15)
+    # grid.get_voxels()
+    # vox_pc_map = grid.voxel_points
+    # for vox_id in range(len(vox_pc_map)):
+    #     vox_pts = vox_pc_map[vox_id]
+    #     g = adjacency(vox_pts, 2)
+    #     show_voxel(vox_pts, g, vis_scale=0)
+    # mlab.show()
+    from visualization import show_voxel
+    from mayavi import mlab
+    import preprocess
+    import sys
+    from time import time
+    pc = np.load('vox_pts.npy')
+    lbl = np.load('vox_lbl.npy')
+    tic = time()
+    w = adjacency(pc, 2, lbl)
+    # w = color_adj(pc, 2, lbl)
+    print(time() - tic)
+    # adj = color_adj(pc, 2, lbl)
+    # # adj = kdgraph(pc, 2)
+    # graph = nx.Graph(adj)
+    # show_voxel(pc, graph, 1)
+    # preprocess.Plot.draw_pc_sem_ins(pc, lbl)
+    # mlab.show()
+    # sys.exit()
