@@ -19,13 +19,21 @@ def maskwlabels(points, plabels):
 
 
 def color_adj(dist_adj, labels):
-    n_dist_adj = dist_adj
-    nz_arr = np.array(n_dist_adj.nonzero()).T
-    for nn_set in nz_arr:
-        nn_labels = [labels[i] for i in nn_set]
-        if len(set(nn_labels)) != 1:
-            n_dist_adj[nn_set[0], nn_set[1]] = 0
-    return n_dist_adj
+    # Get (row,col) array corresponding to non zero elements from distance-based adj matrix
+    nz_arr = np.array(dist_adj.nonzero()).T
+    # Vectorized computation of labels corresponding to non-zero values
+    set_labels = labels[nz_arr]
+    assert set_labels.shape == nz_arr.shape
+    # Compute boolean vector of label overlaps between neighbours
+    eq_check = np.array((set_labels[:, 0] == set_labels[:, 1]), dtype='int')
+    # print(set(eq_check))
+    old_data = np.unique(dist_adj.data)
+    # Modify adj data vector with overlap info
+    dist_adj.data = dist_adj.data * eq_check
+    # check if adj data has been modified
+    assert old_data.all() != np.unique(dist_adj.data).all()
+
+    return dist_adj
 
 def kdtree(points, nn):
     search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
@@ -83,22 +91,11 @@ def adjacency(points, nn, labels):
     assert type(W) is scipy.sparse.csr.csr_matrix
 
     # Modify wrt node colour information
-    # W = color_adj(W, labels)
-    color_mask = maskwlabels(points, labels)
-    W = np.multiply(W.toarray(), color_mask)
+    old = W.data
+    W = color_adj(W, labels)
+    assert not np.array_equiv(old, W.data)
 
-    # W = scipy.sparse.csr_matrix(W)
-    return nx.from_numpy_array(W)
-    # return nx.from_scipy_sparse_matrix(W)
-
-# import tensorflow as tf
-# def matmul_gpu(A, B):
-#     if tf.config.experimental.list_physical_devices("GPU"):
-#         with tf.device("/GPU:0"):  # Or GPU:1 for the 2nd GPU, GPU:2 for the 3rd etc.
-#             c = tf.matmul(A, B)
-#             assert c.device.endswith("GPU:0")
-#     return c.numpy()
-
+    return W
 
 def sortpoints(points):
     x_sorted = points[np.argsort(points[:, 0])]
