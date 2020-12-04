@@ -15,7 +15,7 @@ def color_mask(dist_adj, labels):
     # Modify adj data vector with overlap info
     dist_adj.data = dist_adj.data * eq_check
     # check if adj data has been modified
-    assert old_data.all() != np.unique(dist_adj.data).all()
+    # assert old_data.all() != np.unique(dist_adj.data).all()
 
     return dist_adj
 
@@ -69,9 +69,9 @@ def adjacency(points, nn, labels):
     assert type(W) is scipy.sparse.csr.csr_matrix
 
     # Modify wrt node colour information
-    old = W.data
+    # old = W.data
     W = color_mask(W, labels)
-    assert not np.array_equiv(old, W.data)
+    # assert not np.array_equiv(old, W.data)
 
     return W
 
