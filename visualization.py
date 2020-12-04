@@ -1,12 +1,11 @@
+import os
+os.environ['ETS_TOOLKIT'] = 'qt4'
 import numpy as np
 from mayavi import mlab
 import networkx as nx
 import yaml
-
 DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
 rgb_map = np.array(list(DATA['color_map'].values()))
-# rgb_map[:,[0, 2]] = rgb_map[:,[2, 0]]
-
 
 def create_8bit_rgb_lut():
     """
