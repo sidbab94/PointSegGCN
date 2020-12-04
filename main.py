@@ -9,12 +9,16 @@ from mayavi import mlab
 import yaml
 import sys
 import networkx as nx
-from preprocess import Plot, load_label_kitti
+from preprocess import Plot, load_label_kitti, read_bin_velodyne
+import os
+
+########
+BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+########
 
 parser = OptionParser()
-parser.add_option('--input', dest='inputpc', default='samples/testpc.csv',
-                  help='Provide input point cloud file in supported format (.pts, .csv, .npy) '
-                       '** DEFAULT: samples/testpc.csv')
+parser.add_option('--input', dest='scanpath',
+                  help='Provide input LiDAR scan path in the following format s{sequence#}_{scanid}, e.g. s04_000000 ')
 parser.add_option('--NN', dest='nearestN', default=2, type='int',
                   help='Provide number of nearest neighbours to process each point with. '
                        ' ** DEFAULT: 2')
@@ -36,17 +40,8 @@ parser.add_option('--vg', dest='visualize_graphs', action='store_true',
 options, _ = parser.parse_args()
 np.random.seed(89)
 
-# label_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/labels/000000.label'
-label_path = 'D:/SemanticKITTI/dataset/sequences/00/labels/000000.label'
-DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
-remap_dict_val = DATA["learning_map"]
-max_key = max(remap_dict_val.keys())
-remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
-remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
-labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
 
-
-def construct_vox_graph(vox_pc_map, vis_scale, vis_pc=False, vis_graph=False):
+def construct_vox_graph(vox_pc_map, labels, vis_scale, vis_pc=False, vis_graph=False):
     elapsed = 0.0
     all_pts = np.empty((1, 3))
     all_lbls = np.empty((1,))
@@ -64,10 +59,11 @@ def construct_vox_graph(vox_pc_map, vis_scale, vis_pc=False, vis_graph=False):
             print('     Graph construction done.')
         if vis_graph:
             # show_voxel(vox_pts[:, :3], G, vis_scale)
-            all_pts = np.concatenate((all_pts, vox_pts[:, :3]))
-            all_lbls = np.concatenate((all_lbls, vox_labels))
             G = nx.from_scipy_sparse_matrix(A)
             show_voxel_wlabels(vox_pts[:, :3], vox_labels, G, vis_scale)
+        if vis_pc:
+            all_pts = np.concatenate((all_pts, vox_pts[:, :3]))
+            all_lbls = np.concatenate((all_lbls, vox_labels))
 
     if vis_graph:
         print('     Visualizing graphs...')
@@ -79,23 +75,33 @@ def construct_vox_graph(vox_pc_map, vis_scale, vis_pc=False, vis_graph=False):
     print('Time elapsed for {} voxel(s): {} seconds'.format(len(vox_pc_map), round(elapsed, 5)))
 
 
-
-
 def main():
-    input_cloud_fmt = options.inputpc.split('.')[1]
-    if input_cloud_fmt == 'pts':
-        pc = genfromtxt(options.inputpc, delimiter='')
-    elif input_cloud_fmt == 'csv':
-        pc = genfromtxt(options.inputpc, delimiter=',')
-    elif input_cloud_fmt == 'npy':
-        pc = np.load(options.inputpc)
-    else:
-        raise Exception('Provide a supported point cloud format')
 
+    # parse input scan path for attributes (binary, label files)
+    seq_no = options.scanpath[1:3]
+    velo_file = options.scanpath.split('_')[1] + '.bin'
+    label_file = options.scanpath.split('_')[1] + '.label'
+    velo_path = os.path.join(BASE_DIR + os.altsep, seq_no, 'velodyne', velo_file)
+    label_path = os.path.join(BASE_DIR + os.altsep, seq_no, 'labels', label_file)
+
+    # read point cloud from velodyne path
+    pc = read_bin_velodyne(velo_path)
+
+    # label mapping with semantic-kitti config file
+    DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
+    remap_dict_val = DATA["learning_map"]
+    max_key = max(remap_dict_val.keys())
+    remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
+    remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
+    labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
+
+    # extract XYZ vectors fron original cloud
     pc = pc[:, :3]
+    # add 'index' dimension as last column
     pc = np.insert(pc, 3, np.arange(start=0, stop=pc.shape[0]), axis=1)
 
     N = pc.shape[0]
+    # if point cloud sampling rate specified as argument, proceed with down-sampling point cloud
     if options.ss != 100.0:
         sample_size = round(options.ss * 0.01 * N)
         pc = pc[np.random.choice(N, sample_size, replace=False), :]
@@ -116,7 +122,7 @@ def main():
     vis_graph = options.visualize_graphs
     print('----------------------------------------------------------------------------------')
     print('2.   Constructing graphs for voxels...')
-    construct_vox_graph(vox_pc_map, vis_scale, vis_pc=vis_pc, vis_graph=vis_graph)
+    construct_vox_graph(vox_pc_map, labels=labels, vis_scale=vis_scale, vis_pc=vis_pc, vis_graph=vis_graph)
     print('----------------------------------------------------------------------------------')
     print('==================================================================================')
 
