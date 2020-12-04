@@ -66,8 +66,8 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
 
 def show_voxel_wlabels(vox_pts, vox_lbls, graph, vis_scale):
     if vis_scale == 1:
-        point_size = 0.1#0.2
-        edge_size = 0.02
+        point_size = 0.04#0.2
+        edge_size = 0.01
     else:
         point_size = 0.005
         edge_size = 0.001
