@@ -1,5 +1,4 @@
 import numpy as np
-from numpy import genfromtxt
 from time import time
 import graph_gen as graph
 import voxelization as vox
@@ -25,12 +24,6 @@ parser.add_option('--NN', dest='nearestN', default=2, type='int',
 parser.add_option('--sample_size', dest='ss', default=100.0, type='float',
                   help='Provide proportion of points (in %) to be randomly sampled from input. '
                        ' ** DEFAULT: 100.0')
-# parser.add_option('--vox_factor', dest='div_factor', default=15, type='int',
-#                   help='Specify voxelization factor (number of voxels along principal axis) '
-#                        ' ** DEFAULT: 10')
-# parser.add_option('--vox_thresh', dest='occ_thresh', default=5e-3, type='float',
-#                   help='Specify threshold as factor of original point cloud size, below which voxels would be ignored'
-#                        ' ** DEFAULT: 9e-3')
 parser.add_option('--vox', dest='voxel', action='store_true',
                   help='Voxelize point cloud before graph construction for better speed, possibly lower resolution')
 parser.add_option('--vp', dest='visualize_pc', action='store_true',
@@ -45,6 +38,7 @@ np.random.seed(89)
 def construct_whole_graph(pc, labels, vis_scale, vis_pc=False, vis_graph=False):
     start = time()
     A = graph.adjacency(pc, options.nearestN, labels)
+    assert A.shape == (pc.shape[0], pc.shape[0])
     elapsed = time() - start
     print('     Graph construction done.')
     print('     Time elapsed : {} seconds'.format(round(elapsed, 5)))
