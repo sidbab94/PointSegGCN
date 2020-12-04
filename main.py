@@ -21,9 +21,6 @@ parser.add_option('--NN', dest='nearestN', default=2, type='int',
 parser.add_option('--sample_size', dest='ss', default=100.0, type='float',
                   help='Provide proportion of points (in %) to be randomly sampled from input. '
                        ' ** DEFAULT: 100.0')
-parser.add_option('--nns_method', dest='searchmethod', default='kdtree',
-                  help='Specify method to implement nearest neighbour search -- knn or kdtree? '
-                       ' ** DEFAULT: kdtree')
 parser.add_option('--vox_factor', dest='div_factor', default=15, type='int',
                   help='Specify voxelization factor (number of voxels along principal axis) '
                        ' ** DEFAULT: 10')
@@ -34,8 +31,7 @@ parser.add_option('--vp', dest='visualize_pc', action='store_true',
                   help='Enable visualization of down-sampled point cloud')
 parser.add_option('--vg', dest='visualize_graphs', action='store_true',
                   help='Enable visualization of graph constructed from input point cloud')
-parser.add_option('-o', dest='optimal', action='store_true',
-                  help='Enable optimization of nearest neighbour search algorithm, by pre-sorting points')
+
 
 options, _ = parser.parse_args()
 np.random.seed(89)
@@ -103,8 +99,6 @@ def main():
     if options.ss != 100.0:
         sample_size = round(options.ss * 0.01 * N)
         pc = pc[np.random.choice(N, sample_size, replace=False), :]
-    if options.optimal:
-        pc = graph.sortpoints(pc)
 
     print('==================================================================================')
     print('----------------------------------------------------------------------------------')
