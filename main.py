@@ -8,6 +8,7 @@ from optparse import OptionParser
 from mayavi import mlab
 import yaml
 import sys
+import networkx as nx
 from preprocess import Plot, load_label_kitti
 
 parser = OptionParser()
@@ -59,21 +60,17 @@ def construct_vox_graph(vox_pc_map, vis_scale, vis_pc=False, vis_graph=False):
         vox_pts = vox_pc_map[vox_id]
         vox_pts_ids = vox_pts[:, -1].astype('int')
         vox_labels = labels[vox_pts_ids]
-        all_pts = np.concatenate((all_pts, vox_pts[:, :3]))
-        all_lbls = np.concatenate((all_lbls, vox_labels))
-        # nns = graph.NearestNodeSearch(pointcloud=vox_pts, options=options)
-        # nns.get_neighbours()
-        # G = nns.graph
-        # Plot.draw_pc_sem_ins(pc_xyz=vox_pts, pc_sem_ins=vox_labels)
 
-        # G = graph.color_adj(vox_pts, options.nearestN, vox_labels)
-        G = graph.adjacency(vox_pts, options.nearestN, vox_labels)
+        A = graph.adjacency(vox_pts, options.nearestN, vox_labels)
 
         elapsed = (time() - vox_start) + elapsed
         if vox_id == len(vox_pc_map) - 1:
             print('     Graph construction done.')
         if vis_graph:
             # show_voxel(vox_pts[:, :3], G, vis_scale)
+            all_pts = np.concatenate((all_pts, vox_pts[:, :3]))
+            all_lbls = np.concatenate((all_lbls, vox_labels))
+            G = nx.from_scipy_sparse_matrix(A)
             show_voxel_wlabels(vox_pts[:, :3], vox_labels, G, vis_scale)
 
     if vis_graph:
