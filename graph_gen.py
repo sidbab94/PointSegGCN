@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
-import scipy
+from scipy.sparse import coo_matrix, csr_matrix
 
 def color_mask(dist_adj, labels):
     # Get (row,col) array corresponding to non zero elements from distance-based adj matrix
@@ -10,12 +10,8 @@ def color_mask(dist_adj, labels):
     assert set_labels.shape == nz_arr.shape
     # Compute boolean vector of label overlaps between neighbours
     eq_check = np.array((set_labels[:, 0] == set_labels[:, 1]), dtype='int')
-    # print(set(eq_check))
-    old_data = np.unique(dist_adj.data)
     # Modify adj data vector with overlap info
     dist_adj.data = dist_adj.data * eq_check
-    # check if adj data has been modified
-    # assert old_data.all() != np.unique(dist_adj.data).all()
 
     return dist_adj
 
@@ -44,34 +40,36 @@ def show(pts, graph):
     pts.glyph.scale_mode = 'data_scaling_off'
 
 def adjacency(points, nn, labels):
+    # Obtain distances and indices of nearest {nn} neighbours of all points
     dist, idx = kdtree(points[:, :3], nn)
     M, k = dist.shape
     assert M, k == idx.shape
+    # Make sure every the query doesn't include the point itself, and only the neighbours
     assert dist.min() >= 0
 
-    # Weights.
+    # Edge weights computed based on variance
     sigma2 = np.mean(dist[:, -1])**2
     dist = np.exp(- dist**2 / sigma2)
-    # Weight matrix.
+
+    # Weight matrix construction
     I = np.arange(0, M).repeat(k)
     J = idx.reshape(M*k)
     V = dist.reshape(M*k)
-    W = scipy.sparse.coo_matrix((V, (I, J)), shape=(M, M))
-    # No self-connections.
+    W = coo_matrix((V, (I, J)), shape=(M, M))
+    # No self-loops, remove diagonal non-zero elements
     W.setdiag(0)
 
     # Non-directed graph.
     bigger = W.T > W
     W = W - W.multiply(bigger) + W.T.multiply(bigger)
 
+    # Final assertion checks
     assert W.nnz % 2 == 0
     assert np.abs(W - W.T).mean() < 1e-10
-    assert type(W) is scipy.sparse.csr.csr_matrix
+    assert type(W) is csr_matrix
 
     # Modify wrt node colour information
-    # old = W.data
     W = color_mask(W, labels)
-    # assert not np.array_equiv(old, W.data)
 
     return W
 
