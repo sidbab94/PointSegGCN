@@ -1,13 +1,11 @@
-import Umodel
-
 import numpy as np
-# from tensorflow.keras import Model
-# from tensorflow.keras.layers import Dense, Flatten
-# from tensorflow.keras.regularizers import l2
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.regularizers import l2
 
 from spektral.data import PackedBatchLoader
 from spektral.datasets.mnist import MNIST
-from spektral.layers import GCNConv
+from spektral.layers import GCNConv, MinCutPool
 from spektral.layers.ops import sp_matrix_to_sp_tensor
 
 # Parameters
@@ -32,29 +30,28 @@ np.random.shuffle(data_tr)
 data_tr, data_va = data_tr[:-10000], data_tr[-10000:]
 
 
-# # Build model
-# class Net(Model):
-#     def __init__(self, **kwargs):
-#         super().__init__(**kwargs)
-#         self.conv1 = GCNConv(32, activation='elu', kernel_regularizer=l2(l2_reg))
-#         self.conv2 = GCNConv(32, activation='elu', kernel_regularizer=l2(l2_reg))
-#         self.flatten = Flatten()
-#         self.fc1 = Dense(512, activation='relu')
-#         self.fc2 = Dense(10, activation='softmax')  # MNIST has 10 classes
-#
-#     def call(self, inputs):
-#         x, a = inputs
-#         x = self.conv1([x, a])
-#         x = self.conv2([x, a])
-#         output = self.flatten(x)
-#         output = self.fc1(output)
-#         output = self.fc2(output)
-#
-#         return output
+# Build model
+class Net(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.conv1 = GCNConv(32, activation='elu', kernel_regularizer=l2(l2_reg))
+        self.conv2 = GCNConv(32, activation='elu', kernel_regularizer=l2(l2_reg))
+        self.flatten = Flatten()
+        self.fc1 = Dense(512, activation='relu')
+        self.fc2 = Dense(10, activation='softmax')  # MNIST has 10 classes
+
+    def call(self, inputs):
+        x, a = inputs
+        x = self.conv1([x, a])
+        x = self.conv2([x, a])
+        output = self.flatten(x)
+        output = self.fc1(output)
+        output = self.fc2(output)
+
+        return output
 
 # Create model
 # model = Net()
-model = Umodel.GUNet()
 model.compile('adam', 'sparse_categorical_crossentropy',
               metrics=['sparse_categorical_accuracy'])
 
