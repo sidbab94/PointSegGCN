@@ -22,6 +22,7 @@ def get_file_list(dataset_path, test_scan_num='14'):
     train_file_list = []
     test_file_list = []
     val_file_list = []
+
     for seq_id in seq_list:
         seq_path = join(dataset_path, seq_id)
         pc_path = join(seq_path, 'velodyne')
@@ -127,12 +128,12 @@ if __name__ == "__main__":
     remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
     # print(remap_lut_val)
     cmap = list(DATA['color_map'].values())
-    # base_path = 'D:/SemanticKITTI/dataset/sequences/'
-    # label_path = 'D:/SemanticKITTI/dataset/sequences/00/labels/000000.label'
-    # pc_path = 'D:/SemanticKITTI/dataset/sequences/00/velodyne/000000.bin'
-    base_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/'
-    label_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/labels/000000.label'
-    pc_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/velodyne/000000.bin'
+    base_path = 'D:/SemanticKITTI/dataset/sequences/'
+    label_path = 'D:/SemanticKITTI/dataset/sequences/00/labels/000000.label'
+    pc_path = 'D:/SemanticKITTI/dataset/sequences/00/velodyne/000000.bin'
+    # base_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/'
+    # label_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/labels/000000.label'
+    # pc_path = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/00/velodyne/000000.bin'
 
     cloud = read_bin_velodyne(pc_path)
     labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
@@ -144,5 +145,6 @@ if __name__ == "__main__":
 
     train, val, test = get_file_list(base_path)
     print(len(train), len(val), len(test))
+    print(test)
 
     # Plot.draw_pc_sem_ins(cloud, labels, plot_colors=cmap_labels)
