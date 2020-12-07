@@ -1,15 +1,16 @@
+import os
+import sys
+import yaml
 import numpy as np
 from time import time
-import graph_gen as graph
-import voxelization as vox
-from visualization import show_voxel, show_voxel_wlabels
+import networkx as nx
 from optparse import OptionParser
 from mayavi import mlab
-import yaml
-import sys
-import networkx as nx
+
+import voxelization as vox
+import graph_gen as graph
 from preprocess import Plot, load_label_kitti, read_bin_velodyne
-import os
+from visualization import show_voxel_wlabels
 
 ########
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
@@ -18,7 +19,7 @@ BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 parser = OptionParser()
 parser.add_option('--input', dest='scanpath',
                   help='Provide input LiDAR scan path in the following format s{sequence#}_{scanid}, e.g. s04_000000 ')
-parser.add_option('--NN', dest='nearestN', default=2, type='int',
+parser.add_option('--NN', dest='nearestN', default=5, type='int',
                   help='Provide number of nearest neighbours to process each point with. '
                        ' ** DEFAULT: 2')
 parser.add_option('--sample_size', dest='ss', default=100.0, type='float',
@@ -26,7 +27,7 @@ parser.add_option('--sample_size', dest='ss', default=100.0, type='float',
                        ' ** DEFAULT: 100.0')
 parser.add_option('--vox', dest='voxel', action='store_true',
                   help='Voxelize point cloud before graph construction for better speed, possibly lower resolution')
-parser.add_option('--vp', dest='visualize_pc', action='store_true',
+parser.add_option('--vp', dest='visualize_cloud', action='store_true',
                   help='Enable visualization of down-sampled point cloud')
 parser.add_option('--vg', dest='visualize_graphs', action='store_true',
                   help='Enable visualization of graph constructed from input point cloud')
@@ -52,7 +53,7 @@ def construct_whole_graph(pc, labels, vis_scale, vis_pc=False, vis_graph=False):
         Plot.draw_pc_sem_ins(pc_xyz=pc[:, :3], pc_sem_ins=labels)
 
 
-def construct_vox_graph(vox_pc_map, labels, vis_scale, vis_pc=False, vis_graph=False):
+def construct_vox_graph(vox_pc_map, labels, vis_scale, vis_pc=False, vis_graph=False, vis_voxels=False):
     elapsed = 0.0
     all_pts = np.empty((1, 3))
     all_lbls = np.empty((1,))
@@ -69,7 +70,6 @@ def construct_vox_graph(vox_pc_map, labels, vis_scale, vis_pc=False, vis_graph=F
         if vox_id == len(vox_pc_map) - 1:
             print('     Graph construction done.')
         if vis_graph:
-            # show_voxel(vox_pts[:, :3], G, vis_scale)
             G = nx.from_scipy_sparse_matrix(A)
             show_voxel_wlabels(vox_pts[:, :3], vox_labels, G, vis_scale)
         if vis_pc:
@@ -116,7 +116,7 @@ def main():
     if options.ss != 100.0:
         sample_size = round(options.ss * 0.01 * N)
         pc = pc[np.random.choice(N, sample_size, replace=False), :]
-    vis_pc = options.visualize_pc
+    vis_pc = options.visualize_cloud
     vis_graph = options.visualize_graphs
 
     print('==================================================================================')
@@ -135,7 +135,8 @@ def main():
         vox_pc_map = grid.voxel_points
         print('----------------------------------------------------------------------------------')
         print('2.   Constructing graphs for voxels...')
-        construct_vox_graph(vox_pc_map, labels=labels, vis_scale=vis_scale, vis_pc=vis_pc, vis_graph=vis_graph)
+        construct_vox_graph(vox_pc_map, labels=labels, vis_scale=vis_scale,
+                            vis_pc=vis_pc, vis_graph=vis_graph, vis_voxels=vis_voxels)
         print('----------------------------------------------------------------------------------')
     else:
         print('1.   Constructing graph for {} points...'.format(pc.shape[0]))
