@@ -39,7 +39,7 @@ def show(pts, graph):
     mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
     pts.glyph.scale_mode = 'data_scaling_off'
 
-def adjacency(points, nn, labels):
+def adjacency(points, nn=5, labels=None):
     # Obtain distances and indices of nearest {nn} neighbours of all points
     dist, idx = kdtree(points[:, :3], nn)
     M, k = dist.shape
@@ -68,8 +68,9 @@ def adjacency(points, nn, labels):
     assert np.abs(W - W.T).mean() < 1e-10
     assert type(W) is csr_matrix
 
-    # Modify wrt node colour information
-    W = color_mask(W, labels)
+    if labels != None:
+        # Modify wrt node colour information
+        W = color_mask(W, labels)
 
     return W
 
