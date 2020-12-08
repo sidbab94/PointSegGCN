@@ -1,6 +1,5 @@
 import os
 import sys
-import yaml
 import numpy as np
 from time import time
 import networkx as nx
@@ -9,8 +8,8 @@ from mayavi import mlab
 
 import voxelization as vox
 import graph_gen as graph
-from preprocess import Plot, load_label_kitti, read_bin_velodyne
-from visualization import show_voxel_wlabels
+from dataprep import get_labels, read_bin_velodyne
+from visualization import show_voxel_wlabels, ShowPC
 
 ########
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
@@ -36,7 +35,7 @@ parser.add_option('--vg', dest='visualize_graphs', action='store_true',
 options, _ = parser.parse_args()
 np.random.seed(89)
 
-def construct_whole_graph(pc, labels, vis_scale, vis_pc=False, vis_graph=False):
+def construct_whole_graph(pc, labels, vis_scale=1, vis_pc=False, vis_graph=False):
     start = time()
     A = graph.adjacency(pc, options.nearestN, labels)
     assert A.shape == (pc.shape[0], pc.shape[0])
@@ -49,8 +48,9 @@ def construct_whole_graph(pc, labels, vis_scale, vis_pc=False, vis_graph=False):
         show_voxel_wlabels(pc[:, :3], labels, G, vis_scale)
         mlab.show()
     if vis_pc:
-        print('     Visualizing downsampled point cloud...')
-        Plot.draw_pc_sem_ins(pc_xyz=pc[:, :3], pc_sem_ins=labels)
+        print('     Visualizing point cloud...')
+        ShowPC.draw_pc_sem_ins(pc_xyz=pc[:, :3], pc_sem_ins=labels)
+    return A
 
 
 def construct_vox_graph(vox_pc_map, labels, vis_scale, vis_pc=False, vis_graph=False, vis_voxels=False):
@@ -95,16 +95,9 @@ def main():
     velo_path = os.path.join(BASE_DIR + os.altsep, seq_no, 'velodyne', velo_file)
     label_path = os.path.join(BASE_DIR + os.altsep, seq_no, 'labels', label_file)
 
-    # read point cloud from velodyne path
+    # read point cloud and labels
     pc = read_bin_velodyne(velo_path)
-
-    # label mapping with semantic-kitti config file
-    DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
-    remap_dict_val = DATA["learning_map"]
-    max_key = max(remap_dict_val.keys())
-    remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
-    remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
-    labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
+    labels = get_labels(label_path)
 
     # extract XYZ vectors fron original cloud
     pc = pc[:, :3]
@@ -136,11 +129,11 @@ def main():
         print('----------------------------------------------------------------------------------')
         print('2.   Constructing graphs for voxels...')
         construct_vox_graph(vox_pc_map, labels=labels, vis_scale=vis_scale,
-                            vis_pc=vis_pc, vis_graph=vis_graph, vis_voxels=vis_voxels)
+                            vis_pc=vis_pc, vis_graph=vis_graph)
         print('----------------------------------------------------------------------------------')
     else:
         print('1.   Constructing graph for {} points...'.format(pc.shape[0]))
-        construct_whole_graph(pc, labels=labels, vis_scale=1, vis_pc=vis_pc, vis_graph=vis_graph)
+        A = construct_whole_graph(pc, labels=labels, vis_scale=1, vis_pc=vis_pc, vis_graph=vis_graph)
 
     print('==================================================================================')
 
