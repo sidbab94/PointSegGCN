@@ -81,7 +81,7 @@ def construct_vox_graph(vox_pc_map, labels, vis_scale, vis_pc=False, vis_graph=F
         mlab.show()
     if vis_pc:
         print('     Visualizing downsampled point cloud...')
-        Plot.draw_pc_sem_ins(pc_xyz=all_pts, pc_sem_ins=all_lbls)
+        ShowPC.draw_pc_sem_ins(pc_xyz=all_pts, pc_sem_ins=all_lbls)
     print('----------------------------------------------------------------------------------')
     print('Time elapsed for {} voxel(s): {} seconds'.format(len(vox_pc_map), round(elapsed, 5)))
 
