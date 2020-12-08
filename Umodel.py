@@ -1,199 +1,195 @@
-import os
-import yaml
+"""
+This example shows how to define your own dataset and use it to train a
+non-trivial GNN with message-passing and pooling layers.
+The script also shows how to implement fast training and evaluation functions
+in disjoint mode, with early stopping and accuracy monitoring.
+The dataset that we create is a simple synthetic task in which we have random
+graphs with randomly-colored nodes. The goal is to classify each graph with the
+color that occurs the most on its nodes. For example, given a graph with 2
+colors and 3 nodes:
+x = [[1, 0],
+     [1, 0],
+     [0, 1]],
+the corresponding target will be [1, 0].
+"""
+
 import numpy as np
-
+import scipy.sparse as sp
 import tensorflow as tf
-import tensorflow.keras.backend as K
-from tensorflow.keras import Model, Sequential
-from tensorflow.keras.layers import Dense, Layer, Flatten
-from tensorflow.keras.regularizers import l2
+from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras.losses import CategoricalCrossentropy
+from tensorflow.keras.metrics import CategoricalAccuracy
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
 
-from spektral.data import SingleLoader
-from spektral.layers import ops
-from spektral.layers import GCNConv, MinCutPool
-from spektral.layers.ops import sp_matrix_to_sp_tensor
+from spektral.data import Dataset, Graph, DisjointLoader
+from spektral.layers import GCSConv, GlobalAvgPool
+from spektral.layers.pooling import TopKPool
+from spektral.transforms.normalize_adj import NormalizeAdj
 
-train_config = 'tr_config.yml'
-assert os.path.isfile(train_config)
-reader = yaml.safe_load(open(train_config, 'r'))
-train_params = reader["training_params"]
+################################################################################
+# PARAMETERS
+################################################################################
+learning_rate = 1e-2       # Learning rate
+epochs = 400               # Number of training epochs
+es_patience = 10           # Patience for early stopping
+batch_size = 32            # Batch size
 
 
-def down_sample(filters, n_clusters, apply_reg=False):
-    ds_module = Sequential()
-    if apply_reg:
-        reg = l2(train_params['l2_reg'])
-    else:
-        reg = None
-    ds_module.add(
-        MinCutPool(k=n_clusters)
-    )
-    ds_module.add(
-        GCNConv(channels=filters, kernel_regularizer=reg)
-    )
-    return ds_module
+################################################################################
+# LOAD DATA
+################################################################################
+class MyDataset(Dataset):
+    """
+    A dataset of random colored graphs.
+    The task is to classify each graph with the color which occurs the most in
+    its nodes.
+    The graphs have `n_colors` colors, of at least `n_min` and at most `n_max`
+    nodes connected with probability `p`.
+    """
+    def __init__(self, n_samples, n_colors=3, n_min=10, n_max=100, p=0.1, **kwargs):
+        self.n_samples = n_samples
+        self.n_colors = n_colors
+        self.n_min = n_min
+        self.n_max = n_max
+        self.p = p
+        super().__init__(**kwargs)
 
-def up_sample(filters, n_clusters, apply_reg=False):
+    def read(self):
+        def make_graph():
+            n = np.random.randint(self.n_min, self.n_max)
+            colors = np.random.randint(0, self.n_colors, size=n)
 
-    us_module = Sequential()
-    if apply_reg:
-        reg = l2(train_params['l2_reg'])
-    else:
-        reg = None
-    us_module.add(
-        GCNConv(channels=filters, kernel_regularizer=reg)
-    )
-    us_module.add(
-        MC_unPool(k=n_clusters)
-    )
+            # Node features
+            x = np.zeros((n, self.n_colors))
+            x[np.arange(n), colors] = 1
 
-    return us_module
+            # Edges
+            a = np.random.rand(n, n) <= self.p
+            a = np.maximum(a, a.T).astype(int)
+            a = sp.csr_matrix(a)
 
-# class MCPool(Layer):
-#     def __init__(self, n_clusters):
-#         super(MCPool, self).__init__()
-#         self.k = n_clusters
-#         self.d1 = Dense(16, activation='relu',
-#                         kernel_initializer='glorot_uniform', bias_initializer='zeros')
-#         self.d2 = Dense(self.k, activation='softmax',
-#                         kernel_initializer='glorot_uniform', bias_initializer='zeros')
-#
-#     def call(self, A, X):
-#         self.S = self.d1(X)
-#         self.S = self.d2(self.S)
-#
-#         self.A_pool = tf.matmul(tf.transpose(self.S), tf.matmul(A, self.S))
-#         self.X_pool = tf.matmul(tf.transpose(self.S), X)
-#
-#         self.A_pool = tf.linalg.set_diag(self.A_pool, tf.zeros(tf.shape(self.A_pool)[:-1]))
-#         D_pool = tf.reduce_sum(self.A_pool, -1)
-#         D_pool = tf.sqrt(D_pool)[:, None] + 1e-12
-#         self.A_pool = (self.A_pool / D_pool) / tf.transpose(D_pool)
-#
-#         self.D = tf.reduce_sum(A, axis=-1)
-#
-#         mcut_loss = self.mcut()
-#         self.add_loss(mcut_loss)
-#
-#         orth_loss = self.orthog()
-#         self.add_loss(orth_loss)
-#
-#         return [self.X_pool, self.A_pool]
-#
-#     def mcut(self):
-#         num = tf.linalg.trace(self.A_pool)
-#
-#         D_pooled = tf.matmul(tf.transpose(tf.matmul(self.D, self.S)), self.S)
-#         den = tf.linalg.trace(D_pooled)
-#
-#         mincut_loss = -(num / den)
-#
-#         return mincut_loss
-#
-#     def orthog(self):
-#         St_S = tf.matmul(tf.transpose(self.S), self.S)
-#         I_S = tf.eye(self.k)
-#
-#         orthog_loss = tf.norm(St_S / tf.norm(St_S) - I_S / tf.norm(I_S))
-#
-#         return orthog_loss
+            # Labels
+            y = np.zeros((self.n_colors, ))
+            color_counts = x.sum(0)
+            y[np.argmax(color_counts)] = 1
 
-class MC_unPool(Layer):
-    def __init__(self, k):
-        super(MC_unPool, self).__init__()
-        self.k = k
-        self.d1 = Dense(16, activation='relu',
-                        kernel_initializer='glorot_uniform', bias_initializer='zeros')
-        self.d2 = Dense(self.k, activation='softmax',
-                        kernel_initializer='glorot_uniform', bias_initializer='zeros')
+            return Graph(x=x, a=a, y=y)
 
-    def call(self, inputs):
-        if len(inputs) == 3:
-            X_pool, A_pool, I = inputs
-            if K.ndim(I) == 2:
-                I = I[:, 0]
+        # We must return a list of Graph objects
+        return [make_graph() for _ in range(self.n_samples)]
+
+
+dataset = MyDataset(1000, transforms=NormalizeAdj())
+
+# Parameters
+F = dataset.n_node_features  # Dimension of node features
+n_out = dataset.n_labels     # Dimension of the target
+
+# Train/valid/test split
+idxs = np.random.permutation(len(dataset))
+split_va, split_te = int(0.8 * len(dataset)), int(0.9 * len(dataset))
+idx_tr, idx_va, idx_te = np.split(idxs, [split_va, split_te])
+dataset_tr = dataset[idx_tr]
+dataset_va = dataset[idx_va]
+dataset_te = dataset[idx_te]
+
+loader_tr = DisjointLoader(dataset_tr, batch_size=batch_size, epochs=epochs)
+loader_va = DisjointLoader(dataset_va, batch_size=batch_size)
+loader_te = DisjointLoader(dataset_te, batch_size=batch_size)
+
+################################################################################
+# BUILD (unnecessarily big) MODEL
+################################################################################
+X_in = Input(shape=(F, ), name='X_in')
+A_in = Input(shape=(None,), sparse=True)
+I_in = Input(shape=(), name='segment_ids_in', dtype=tf.int32)
+
+X_1 = GCSConv(32, activation='relu')([X_in, A_in])
+X_1, A_1, I_1 = TopKPool(ratio=0.5)([X_1, A_in, I_in])
+X_2 = GCSConv(32, activation='relu')([X_1, A_1])
+X_2, A_2, I_2 = TopKPool(ratio=0.5)([X_2, A_1, I_1])
+X_3 = GCSConv(32, activation='relu')([X_2, A_2])
+X_3 = GlobalAvgPool()([X_3, I_2])
+output = Dense(n_out, activation='softmax')(X_3)
+
+# Build model
+model = Model(inputs=[X_in, A_in, I_in], outputs=output)
+opt = Adam(lr=learning_rate)
+loss_fn = CategoricalCrossentropy()
+acc_fn = CategoricalAccuracy()
+
+
+################################################################################
+# FIT MODEL
+################################################################################
+@tf.function(input_signature=loader_tr.tf_signature(), experimental_relax_shapes=True)
+def train_step(inputs, target):
+    with tf.GradientTape() as tape:
+        print(target)
+        predictions = model(inputs, training=True)
+        loss = loss_fn(target, predictions)
+        loss += sum(model.losses)
+        acc = acc_fn(target, predictions)
+    gradients = tape.gradient(loss, model.trainable_variables)
+    opt.apply_gradients(zip(gradients, model.trainable_variables))
+    return loss, acc
+
+
+def evaluate(loader, ops_list):
+    output = []
+    step = 0
+    while step < loader.steps_per_epoch:
+        step += 1
+        inputs, target = loader.__next__()
+        pred = model(inputs, training=False)
+        outs = [o(target, pred) for o in ops_list]
+        output.append(outs)
+    return np.mean(output, 0)
+
+
+print('Fitting model')
+current_batch = epoch = model_loss = model_acc = 0
+best_val_loss = np.inf
+best_weights = None
+patience = es_patience
+
+for batch in loader_tr:
+    print(batch)
+    outs = train_step(*batch)
+    sad
+    model_loss += outs[0]
+    model_acc += outs[1]
+    current_batch += 1
+    if current_batch == loader_tr.steps_per_epoch:
+        model_loss /= loader_tr.steps_per_epoch
+        model_acc /= loader_tr.steps_per_epoch
+        epoch += 1
+
+        # Compute validation loss and accuracy
+        val_loss, val_acc = evaluate(loader_va, [loss_fn, acc_fn])
+        print('Ep. {} - Loss: {:.2f} - Acc: {:.2f} - Val loss: {:.2f} - Val acc: {:.2f}'
+              .format(epoch, model_loss, model_acc, val_loss, val_acc))
+
+        # Check if loss improved for early stopping
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience = es_patience
+            print('New best val_loss {:.3f}'.format(val_loss))
+            best_weights = model.get_weights()
         else:
-            X_pool, A_pool = inputs
-            I = None
+            patience -= 1
+            if patience == 0:
+                print('Early stopping (best val_loss: {})'.format(best_val_loss))
+                break
+        model_loss = 0
+        model_acc = 0
+        current_batch = 0
 
-        batch_mode = K.ndim(X_pool) == 3
-
-        S = self.d1(X_pool)
-        S = self.d2(S)
-
-        A_rec = ops.matmul_A_B_AT(S, A_pool)
-        num = tf.linalg.trace(A_rec)
-        D = ops.degree_matrix(A_pool)
-        den = tf.linalg.trace(ops.matmul_AT_B_A(S, D)) + K.epsilon()
-        cut_loss = -(num / den)
-        if batch_mode:
-            cut_loss = K.mean(cut_loss)
-        self.add_loss(cut_loss)
-
-        # Orthogonality regularization
-        SS = ops.matmul_AT_B(S, S)
-        I_S = tf.eye(self.k, dtype=SS.dtype)
-        ortho_loss = tf.norm(
-            SS / tf.norm(SS, axis=(-1, -2), keepdims=True) - I_S / tf.norm(I_S),
-            axis=(-1, -2)
-        )
-        if batch_mode:
-            ortho_loss = K.mean(ortho_loss)
-        self.add_loss(ortho_loss)
-
-        # Pooling
-        X_rec = ops.matmul_AT_B(S, X_pool)
-        A_rec = tf.linalg.set_diag(
-            A_rec, tf.zeros(K.shape(A_rec)[:-1], dtype=A_rec.dtype)
-        )  # Remove diagonal
-        A_rec = ops.normalize_A(A_rec)
-
-        output = [X_rec, A_rec]
-
-        if I is not None:
-            I_mean = tf.math.segment_mean(I, I)
-            I_pooled = ops.repeat(I_mean, tf.ones_like(I_mean) * self.k)
-            output.append(I_pooled)
-
-        if self.return_mask:
-            output.append(S)
-
-        return output
-
-class GUNet(Model):
-    def __init__(self):
-        super(GUNet, self).__init__()
-
-        self.gcn_start = GCNConv(64, activation='elu')
-        k = 5
-        self.ds_stack = [
-            down_sample(128, k),
-            down_sample(256, k, apply_reg=True)
-        ]
-        self.us_stack = [
-            up_sample(256, k),
-            up_sample(128, k, apply_reg=True)
-        ]
-        self.gcn_last = GCNConv(64, activation=None)
-
-    def call(self, inputs):
-        skips = []
-        x, a = inputs
-
-        for down in self.ds_stack:
-            x = down([x, a])
-            skips.append(x)
-
-        skips = reversed(skips[:-1])
-
-        for up, skip in zip(self.us_stack, skips):
-            x = up([x, a])
-            x = tf.keras.layers.Concatenate()([x, skip])
-
-        x = self.gcn_last([x, a])
-        return x
-
-
-
-
-
+################################################################################
+# EVALUATE MODEL
+################################################################################
+print('Testing model')
+model.set_weights(best_weights)  # Load best model
+test_loss, test_acc = evaluate(loader_te, [loss_fn, acc_fn])
+print('Done. Test loss: {:.4f}. Test acc: {:.2f}'.format(test_loss, test_acc))
