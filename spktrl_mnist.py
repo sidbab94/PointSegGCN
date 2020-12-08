@@ -16,14 +16,13 @@ l2_reg = 5e-4    # Regularization rate for l2
 
 # Load data
 data = MNIST()
-print(data)
+print(data.n_labels)
 
 # The adjacency matrix is stored as an attribute of the dataset.
 # Create filter for GCN and convert to sparse tensor.
 adj = data.a
 adj = GCNConv.preprocess(adj)
 adj = sp_matrix_to_sp_tensor(adj)
-
 # Train/valid/test split
 data_tr, data_te = data[:-10000], data[-10000:]
 np.random.shuffle(data_tr)
@@ -51,7 +50,7 @@ class Net(Model):
         return output
 
 # Create model
-# model = Net()
+model = Net()
 model.compile('adam', 'sparse_categorical_crossentropy',
               metrics=['sparse_categorical_accuracy'])
 
@@ -87,8 +86,7 @@ for batch in loader_tr:
 
     # Training step
     x, y = batch
-    print(x[0].shape)
-    print()
+    print(x[0].shape, y[0])
     l, a = model.train_on_batch([x, adj], y)
     results_tr.append((l, a))
 
@@ -114,3 +112,5 @@ for batch in loader_tr:
         # Reset epoch
         results_tr = []
         step = 0
+
+
