@@ -119,7 +119,6 @@ opt = Adam(lr=learning_rate)
 loss_fn = CategoricalCrossentropy()
 acc_fn = CategoricalAccuracy()
 
-
 ################################################################################
 # FIT MODEL
 ################################################################################
@@ -155,9 +154,12 @@ best_weights = None
 patience = es_patience
 
 for batch in loader_tr:
-    print(batch)
-    outs = train_step(*batch)
+    print(*batch)
+    print(dataset.signature)
+    print(loader_tr.tf_signature())
     sad
+
+    outs = train_step(*batch)
     model_loss += outs[0]
     model_acc += outs[1]
     current_batch += 1
