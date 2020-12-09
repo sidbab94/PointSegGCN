@@ -1,151 +1,109 @@
 import numpy as np
 from yaml import safe_load
-
 import tensorflow as tf
-from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import Dropout
 from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import SparseCategoricalCrossentropy
-from tensorflow.keras.metrics import CategoricalAccuracy
-from spektral.layers import GCNConv, GCSConv, TopKPool, GlobalAvgPool
+tf.config.run_functions_eagerly(True)
+
+from spektral.layers import GCNConv, GlobalMaxPool, MinCutPool
+from spektral.transforms import LayerPreprocess
 from spektral.data import DisjointLoader
 
 from spktrl_dataset import PCGraph
 
+
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 tr_seq_no = '00'
 va_seq_no = '01'
-te_seq_no = '02'
-print('Preparing graph dataset for train sequences..')
-data_tr = PCGraph(BASE_DIR, tr_seq_no, stop_idx=10)
-print('Preparing graph dataset for validation sequences..')
-data_va = PCGraph(BASE_DIR, va_seq_no, stop_idx=1)
-print('Preparing graph dataset for test sequences..')
-data_te = PCGraph(BASE_DIR, te_seq_no, stop_idx=1)
-print('Done.')
+data_tr = PCGraph(BASE_DIR, tr_seq_no, stop_idx=10)#, transforms=LayerPreprocess(GCNConv))
+data_va = PCGraph(BASE_DIR, va_seq_no, stop_idx=1)#, transforms=LayerPreprocess(GCNConv))
 
-F = data_tr.n_node_features
 tr_params = safe_load(open('tr_config.yml', 'r'))['training_params']
 
-loader_tr = DisjointLoader(dataset=data_tr, batch_size=1, node_level=True, epochs=tr_params['epochs'])
-loader_va = DisjointLoader(dataset=data_va, batch_size=1, node_level=True)
-loader_te = DisjointLoader(dataset=data_te, batch_size=1, node_level=True)
+l2_reg = tr_params['l2_reg']
+ep = tr_params['epochs']
+num_classes = tr_params['num_classes']
 
-# class Net(Model):
-#     def __init__(self, **kwargs):
-#         super().__init__(**kwargs)
-#         self.skp_conv1 = GCSConv(32, activation='relu')
-#         self.tkpool1 = TopKPool(ratio=0.5)
-#         self.skp_conv2 = GCSConv(32, activation='relu')
-#         self.tkpool2 = TopKPool(ratio=0.5)
-#         self.skp_conv3 = GCSConv(32, activation='relu')
-#         self.glo_pool = GlobalAvgPool()
-#         self.seg_conv = GCNConv(28, activation='softmax')
-#
-#     def call(self, inputs):
-#         x_in, a_in = inputs
-#
-#         x1 = self.skp_conv1([x_in, a_in])
-#         x1, a1, I1 = self.tkpool1([x1, a_in, I_in])
-#         x2 = self.skp_conv2([x1, a1])
-#         x2, a2, I2 = self.tkpool1([x2, a1, I1])
-#         x3 = self.skp_conv3([x2, a2])
-#         x3 = self.glo_pool([x3, I2])
-#         output = self.seg_conv([x3, a2])
-#
-#         return output
+class Net(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.conv1 = GCNConv(32, activation='relu')
+        self.conv2 = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg))
+        self.do1 = Dropout(0.5)
+        self.conv3 = GCNConv(num_classes, activation='softmax')
 
-X_in = Input(shape=(F, ), name='X_in')
-A_in = Input(shape=(None,), sparse=True)
-I_in = Input(shape=(), name='segment_ids_in', dtype=tf.int32)
+    def call(self, inputs):
+        x, a = inputs
+        x = self.conv1([x, a])
+        x = self.conv2([x, a])
+        x = self.do1(x)
+        output = self.conv3([x, a])
+        return output
 
-X_1 = GCSConv(32, activation='relu')([X_in, A_in])
-X_1, A_1, I_1 = TopKPool(ratio=0.5)([X_1, A_in, I_in])
-X_2 = GCSConv(32, activation='relu')([X_1, A_1])
-X_2, A_2, I_2 = TopKPool(ratio=0.5)([X_2, A_1, I_1])
-X_3 = GCSConv(32, activation='relu')([X_2, A_2])
-X_3 = GlobalAvgPool()([X_3, I_2])
-output = GCNConv(28, activation='softmax')([X_3, A_2])
 
-model = Model(inputs=[X_in, A_in, I_in], outputs=output)
+model = Net()
 opt = Adam(lr=tr_params['learning_rate'])
-loss_fn = SparseCategoricalCrossentropy()
-acc_fn = CategoricalAccuracy()
+loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
+
+train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
+val_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='val_accuracy')
+val_miou = tf.keras.metrics.MeanIoU(name='val_miou', num_classes=num_classes)
+
+loader_tr = DisjointLoader(dataset=data_tr, batch_size=1, node_level=True, epochs=ep)
+loader_va = DisjointLoader(dataset=data_va, batch_size=1, node_level=True)
 
 
-################################################################################
-# FIT MODEL
-################################################################################
-print(len(loader_tr.tf_signature()))
-@tf.function(input_signature=loader_tr.tf_signature(), experimental_relax_shapes=True)
+@tf.function
 def train_step(inputs, target):
     with tf.GradientTape() as tape:
-        print(target)
         predictions = model(inputs, training=True)
-        loss = loss_fn(target, predictions)
-        loss += sum(model.losses)
-        acc = acc_fn(target, predictions)
-    gradients = tape.gradient(loss, model.trainable_variables)
+        loss_tr = loss_fn(target, predictions)
+    gradients = tape.gradient(loss_tr, model.trainable_variables)
     opt.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss, acc
 
+    train_accuracy(target, predictions)
+    return loss_tr
 
-def evaluate(loader, ops_list):
-    output = []
+@tf.function
+def evaluate(loader):
     step = 0
-    while step < loader.steps_per_epoch:
+    for batch in loader:
         step += 1
-        inputs, target = loader.__next__()
-        pred = model(inputs, training=False)
-        outs = [o(target, pred) for o in ops_list]
-        output.append(outs)
-    return np.mean(output, 0)
+        x, adj, y = batch[0]
+        predictions = model([x, adj], training=False)
+        loss_va = loss_fn(y, predictions)
+        val_accuracy(y, predictions)
+        pred_labels = np.argmax(predictions, axis=-1)
+        val_miou(y, pred_labels)
+        if step == loader.steps_per_epoch:
+            return loss_va
 
 
 print('Fitting model')
-current_batch = epoch = model_loss = model_acc = 0
-best_val_loss = np.inf
-best_weights = None
-patience = tr_params['es_patience']
+
+best_val_loss = 99999
+step = 0
 
 for batch in loader_tr:
-    # # outs = train_step(*batch)
-    # (tup), y = batch
-    # print(np.unique(tup[1]))
-    # efe
-    outs = train_step(*batch)
-    model_loss += outs[0]
-    model_acc += outs[1]
-    current_batch += 1
-    if current_batch == loader_tr.steps_per_epoch:
-        model_loss /= loader_tr.steps_per_epoch
-        model_acc /= loader_tr.steps_per_epoch
-        epoch += 1
+    step += 1
+    train_accuracy.reset_states()
+    val_accuracy.reset_states()
+    val_miou.reset_states()
+    x, adj, y = batch[0]
+    loss_tr = train_step([x, adj], y)
 
-        # Compute validation loss and accuracy
-        val_loss, val_acc = evaluate(loader_va, [loss_fn, acc_fn])
-        print('Ep. {} - Loss: {:.2f} - Acc: {:.2f} - Val loss: {:.2f} - Val acc: {:.2f}'
-              .format(epoch, model_loss, model_acc, val_loss, val_acc))
+    if step == loader_tr.steps_per_epoch:
+        loss_va = evaluate(loader_va)
+        if loss_va < best_val_loss:
+            best_val_loss = loss_va
+        print('Train loss: {:.4f}, Train accuracy: {:.4f} | '
+              'Valid loss: {:.4f}, Valid accuracy: {:.4f} | '
+              'Valid MeanIoU: {:.4f} | '
+              .format(loss_tr, train_accuracy.result() * 100,
+                      loss_va, val_accuracy.result() * 100,
+                      val_miou.result() * 100))
+        # Reset epoch
+        step = 0
 
-        # Check if loss improved for early stopping
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            patience = tr_params['es_patience']
-            print('New best val_loss {:.3f}'.format(val_loss))
-            best_weights = model.get_weights()
-        else:
-            patience -= 1
-            if patience == 0:
-                print('Early stopping (best val_loss: {})'.format(best_val_loss))
-                break
-        model_loss = 0
-        model_acc = 0
-        current_batch = 0
-
-################################################################################
-# EVALUATE MODEL
-################################################################################
-print('Testing model')
-model.set_weights(best_weights)  # Load best model
-test_loss, test_acc = evaluate(loader_te, [loss_fn, acc_fn])
-print('Done. Test loss: {:.4f}. Test acc: {:.2f}'.format(test_loss, test_acc))
