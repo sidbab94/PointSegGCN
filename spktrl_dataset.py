@@ -29,15 +29,16 @@ class PCGraph(Dataset):
                 print('     Graph Construction -- Seq {} | Scan {} -- complete.'.format(self.seq, i))
                 a = adjacency(x)
                 list_of_graphs.append(Graph(x=x, a=a, y=y))
+
         if self.seq_list is not None:
             for id in self.seq_list:
                 velo_dir = os.path.join(self.base_dir, id, 'velodyne')
                 velo_files = os.listdir(velo_dir)
+
                 if self.stop_idx is not None:
                     iter_range = range(self.stop_idx)
                 else:
                     iter_range = range(len(velo_files))
-
                 if self.test:
                     for i in iter_range:
                         curr_velo_path = os.path.join(velo_dir, velo_files[i])
