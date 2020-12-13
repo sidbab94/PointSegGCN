@@ -225,4 +225,9 @@ class ShowPC:
         ShowPC.draw_pc(Y_semins)
         return Y_semins
 
+if __name__ == '__main__':
+    from dataprep import get_labels
+    x = np.genfromtxt('samples/testpc.csv', delimiter=',')
+    y = get_labels('samples/testpc.label')
+    ShowPC.draw_pc_sem_ins(pc_xyz=x, pc_sem_ins=y)
 
