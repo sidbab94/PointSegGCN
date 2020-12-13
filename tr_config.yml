@@ -1,0 +1,10 @@
+
+training_params:
+  epochs: 100
+  num_classes: 20
+  learning_rate: 0.001
+  l2_reg: 0.01
+  es_patience: 20
+  n_node_features: 3
+  lovasz_switch: 30
+
