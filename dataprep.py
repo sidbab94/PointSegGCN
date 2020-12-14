@@ -4,10 +4,10 @@ import yaml
 from os.path import join
 import struct
 
+
 # BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 
 def get_split_files(dataset_path, config_file='semantic-kitti.yaml'):
-
     assert os.path.isfile(config_file)
 
     CFG = yaml.safe_load(open(config_file, 'r'))
@@ -37,6 +37,7 @@ def get_split_files(dataset_path, config_file='semantic-kitti.yaml'):
 
     return train_file_list, val_file_list, test_file_list
 
+
 def read_bin_velodyne(path):
     pc_list = []
     with open(path, 'rb') as f:
@@ -46,6 +47,7 @@ def read_bin_velodyne(path):
             pc_list.append([point[0], point[1], point[2]])
     return np.asarray(pc_list, dtype=np.float32)
 
+
 def load_label_kitti(label_path, remap_lut):
     label = np.fromfile(label_path, dtype=np.uint32)
     label = label.reshape((-1))
@@ -54,6 +56,7 @@ def load_label_kitti(label_path, remap_lut):
     assert ((sem_label + (inst_label << 16) == label).all())
     sem_label = remap_lut[sem_label]
     return sem_label.astype(np.int32)
+
 
 def get_labels(label_path):
     assert os.path.isfile('semantic-kitti.yaml')
@@ -66,3 +69,27 @@ def get_labels(label_path):
     labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
     return labels
 
+def to_labels(label_array, store_path):
+    upper_half = label_array >> 16  # get upper half for instances
+    lower_half = label_array & 0xFFFF  # get lower half for semantics
+
+    DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
+    remap_dict_val = DATA["learning_map_inv"]
+    max_key = max(remap_dict_val.keys())
+    remap_lut = np.zeros((max_key + 100), dtype=np.int32)
+
+    lower_half = remap_lut[lower_half]  # do the remapping of semantics
+    pred = (upper_half << 16) + lower_half  # reconstruct full label
+    pred = pred.astype(np.uint32)
+
+    pred.tofile(store_path)
+
+if __name__ == '__main__':
+    label1_array = get_labels('samples/testpc.label')
+    unique_labels_orig = np.unique(label1_array)
+
+    label2_array = get_labels('samples/recon.label')
+    unique_labels_recon = np.unique(label2_array)
+
+    print(unique_labels_orig)
+    print(unique_labels_recon)
