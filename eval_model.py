@@ -1,14 +1,14 @@
 from utils.visualization import ShowPC
 from tensorflow.keras.models import load_model
 from tensorflow.keras.metrics import MeanIoU
-from spktrl_dataset import PCGraph
+from utils.dataprep import PCGraph
 from spektral.transforms import LayerPreprocess
 from spektral.layers import GCNConv
 import numpy as np
 from os import listdir
 from yaml import safe_load
 from spektral.data import DisjointLoader
-from lovasz_loss import lovasz_softmax_flat as lovz
+from utils.lovasz_loss import lovasz_softmax_flat as lovz
 
 # TEST = True
 TEST = False
