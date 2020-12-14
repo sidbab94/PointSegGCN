@@ -36,7 +36,7 @@ To represent a graph, one requires the set of vertices, and for each vertex the 
 
 Extending this principle to point clouds, one can intuitively imagine the points themselves to be vertices/nodes and the edges to be (possibly) the Euclidean distances between the points. For instance, edges can be drawn between points and their k closest neighbours (found using KD-Tree partioning technique), from which a weighted adjacency matrix and subsequently a graph can be constructed (as shown in the SemanticKITTI example scan below).
 <p align="center">
-<img src="vis_output/semkitti_graph.png">
+<img src="imgs/semkitti_graph.png">
 </p>
 
 ## Graph Convolutional Networks
