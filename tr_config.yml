@@ -4,7 +4,7 @@ training_params:
   num_classes: 20
   learning_rate: 0.001
   l2_reg: 0.01
-  es_patience: 20
+  es_patience: 30
   n_node_features: 3
-  lovasz_switch: 30
+  lovasz_switch: 60
 
