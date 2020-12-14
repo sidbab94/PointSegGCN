@@ -76,12 +76,5 @@ def adjacency(points, nn=5, labels=None):
 
 
 if __name__ == "__main__":
-    from time import time
-    from mayavi import mlab
-    import networkx as nx
-    pc = np.load('vox_pts.npy')
-    lbl = np.load('vox_lbl.npy')
-    tic = time()
-    w = adjacency(pc, 2, lbl)
-    print(time() - tic)
+    pass
 

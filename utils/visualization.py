@@ -7,7 +7,7 @@ from mayavi import mlab
 import networkx as nx
 import yaml
 import open3d as o3d
-DATA = yaml.safe_load(open('semantic-kitti.yaml', 'r'))
+DATA = yaml.safe_load(open('../config/semantic-kitti.yaml', 'r'))
 rgb_map = np.array(list(DATA['color_map'].values()))
 
 def create_8bit_rgb_lut():
@@ -226,8 +226,8 @@ class ShowPC:
         return Y_semins
 
 if __name__ == '__main__':
-    from dataprep import get_labels
-    x = np.genfromtxt('samples/testpc.csv', delimiter=',')
-    y = get_labels('samples/testpc.label')
+    from utils.dataprep import get_labels
+    x = np.genfromtxt('../samples/testpc.csv', delimiter=',')
+    y = get_labels('../samples/testpc.label')
     ShowPC.draw_pc_sem_ins(pc_xyz=x, pc_sem_ins=y)
 
