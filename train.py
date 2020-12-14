@@ -9,17 +9,17 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam
 tf.config.run_functions_eagerly(True)
 
-from spektral.layers import GCNConv, GlobalMaxPool, GlobalAttnSumPool
+from spektral.layers import GCNConv, GlobalMaxPool
 from spektral.transforms import LayerPreprocess
 from spektral.data import DisjointLoader
 
-from spktrl_dataset import PCGraph
-from lovasz_loss import lovasz_softmax_flat
+from utils.dataprep import PCGraph
+from utils.lovasz_loss import lovasz_softmax_flat
 
 
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 seq_list = np.sort(listdir(BASE_DIR))
-split_params = safe_load(open('semantic-kitti.yaml', 'r'))['split']
+split_params = safe_load(open('config/semantic-kitti.yaml', 'r'))['split']
 tr_seq_list = list(seq_list[split_params['train']])
 va_seq_list = list(seq_list[split_params['valid']])
 
@@ -48,7 +48,7 @@ print('=========================================================================
 # print('==================================================================================')
 
 
-tr_params = safe_load(open('tr_config.yml', 'r'))['training_params']
+tr_params = safe_load(open('config/tr_config.yml', 'r'))['training_params']
 
 l2_reg = tr_params['l2_reg']
 EPOCHS = tr_params['epochs']
