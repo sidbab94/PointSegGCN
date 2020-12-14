@@ -57,5 +57,6 @@ class PCGraph(Dataset):
                         print('     Graph Construction -- Seq {} | Scan {} -- complete.'.format(id, i))
                         a = adjacency(x)
                         list_of_graphs.append(Graph(x=x, a=a, y=y))
+        print('     Preprocessing..')
         return list_of_graphs
 
