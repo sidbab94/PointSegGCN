@@ -1,4 +1,4 @@
-from visualization import ShowPC
+from utils.visualization import ShowPC
 from tensorflow.keras.models import load_model
 from tensorflow.keras.metrics import MeanIoU
 from spktrl_dataset import PCGraph
@@ -15,7 +15,7 @@ TEST = False
 
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 seq_list = np.sort(listdir(BASE_DIR))
-split_params = safe_load(open('semantic-kitti.yaml', 'r'))['split']
+split_params = safe_load(open('config/semantic-kitti.yaml', 'r'))['split']
 if TEST:
     te_seq_list = list(seq_list[split_params['test']])
 else:

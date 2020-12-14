@@ -6,10 +6,9 @@ import networkx as nx
 from optparse import OptionParser
 from mayavi import mlab
 
-import voxelization as vox
-import graph_gen as graph
-from dataprep import get_labels, read_bin_velodyne
-from visualization import show_voxel_wlabels, ShowPC
+from utils import graph_gen as graph, voxelization as vox
+from utils.dataprep import get_labels, read_bin_velodyne
+from utils.visualization import show_voxel_wlabels, ShowPC
 
 ########
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
