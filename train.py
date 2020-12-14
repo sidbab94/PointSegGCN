@@ -34,7 +34,7 @@ data_va = PCGraph(BASE_DIR, seq_no='08', stop_idx=200, transforms=LayerPreproces
 print('     Preprocessing..')
 print('     .. Done.')
 print('----------------------------------------------------------------------------------')
-# print('==================================================================================')
+print('==================================================================================')
 
 # print('==================================================================================')
 # print('1.   Preparing Graph dataset for training sequences..')
@@ -127,8 +127,8 @@ train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 valid_summary_writer = tf.summary.create_file_writer(valid_log_dir)
 # tb_callback = tf.keras.callbacks.TensorBoard('TB_logs')
 
-loader_tr = DisjointLoader(dataset=data_tr, batch_size=1, node_level=True, shuffle=True, epochs=ep)
-loader_va = DisjointLoader(dataset=data_va, batch_size=1, shuffle=True, node_level=True)
+loader_tr = DisjointLoader(dataset=data_tr, batch_size=1, node_level=True, shuffle=True, epochs=EPOCHS)
+loader_va = DisjointLoader(dataset=data_va, batch_size=1, shuffle=True, node_level=True, epochs=EPOCHS)
 
 
 def train_step(loader, lovasz=False):

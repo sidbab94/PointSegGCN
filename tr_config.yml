@@ -6,5 +6,5 @@ training_params:
   l2_reg: 0.01
   es_patience: 30
   n_node_features: 3
-  lovasz_switch: 60
+  lovasz_switch: 35
 
