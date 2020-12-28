@@ -1,14 +1,14 @@
 from tensorflow.keras.models import load_model
 import numpy as np
-from yaml import safe_load
-from preproc_utils.dataprep import get_split_files
+from preproc_utils.dataprep import get_split_files, get_cfg_params
 from batch_gen import process_single
 from train_utils.eval_met import iouEval
 from visualization import ShowPC
 
-semkitti_cfg = safe_load(open('config/semantic-kitti.yaml', 'r'))
 BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-class_ignore = semkitti_cfg["learning_ignore"]
+
+tr_dict, semkitti_dict = get_cfg_params(base_dir=BASE_DIR)
+class_ignore = semkitti_dict["class_ignore"]
 ignore = []
 for cl, ign in class_ignore.items():
     if ign:
@@ -17,10 +17,10 @@ for cl, ign in class_ignore.items():
         print("     Ignoring cross-entropy class ", x_cl, " in IoU evaluation")
 test_miou = iouEval(20, ignore)
 
-train_files, val_files, test_files = get_split_files(dataset_path=BASE_DIR, cfg=semkitti_cfg["split"], count=1)
+train_files, val_files, test_files = get_split_files(dataset_path=BASE_DIR, cfg=semkitti_dict, count=1)
 test_file = train_files[0]
 
-def test(test_file, model_path='models/infer_v1_8'):
+def test(test_file, model_path='models/infer_v1_9_small'):
     loaded = load_model(filepath=model_path, compile=False)
     x, a, y = process_single(test_file)
     predictions = loaded([x, a], training=False)
