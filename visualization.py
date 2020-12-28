@@ -7,8 +7,9 @@ from mayavi import mlab
 import networkx as nx
 import yaml
 import open3d as o3d
-DATA = yaml.safe_load(open('../config/semantic-kitti.yaml', 'r'))
-rgb_map = np.array(list(DATA['color_map'].values()))
+
+os.chdir(os.getcwd())
+
 
 def create_8bit_rgb_lut():
     """
@@ -158,6 +159,16 @@ def show_voxel(vox_pts, graph, vis_scale):
                   zmin - pad[2], zmax - pad[2])
 
 
+def cmap_cfg():
+    semkitti = yaml.safe_load(open('./config/semantic-kitti.yaml', 'r'))
+    bgr_map = np.array(list(semkitti['color_map'].values()))
+    # rgb_map = np.empty_like(bgr_map)
+    # rgb_map[:, 0] = bgr_map[:, 2]
+    # rgb_map[:, 1] = bgr_map[:, 1]
+    # rgb_map[:, 2] = bgr_map[:, 0]
+    return bgr_map/255
+
+
 class ShowPC:
     @staticmethod
     def random_colors(N, bright=True, seed=0):
@@ -183,7 +194,7 @@ class ShowPC:
         return 0
 
     @staticmethod
-    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, plot_colors=None):
+    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, plot_colors=cmap_cfg()):
         """
         pc_xyz: 3D coordinates of point clouds
         pc_sem_ins: semantic or instance labels
@@ -193,6 +204,7 @@ class ShowPC:
             ins_colors = plot_colors
         else:
             ins_colors = ShowPC.random_colors(len(np.unique(pc_sem_ins)) + 1, seed=2)
+        # ins_colors = cmap_cfg(pc_sem_ins)
         ##############################
         sem_ins_labels = np.unique(pc_sem_ins)
         sem_ins_bbox = []
@@ -225,9 +237,9 @@ class ShowPC:
         ShowPC.draw_pc(Y_semins)
         return Y_semins
 
-if __name__ == '__main__':
-    from utils.dataprep import get_labels
-    x = np.genfromtxt('../samples/testpc.csv', delimiter=',')
-    y = get_labels('../samples/testpc.label')
-    ShowPC.draw_pc_sem_ins(pc_xyz=x, pc_sem_ins=y)
 
+if __name__ == '__main__':
+    from dataprep import get_labels
+    x = np.genfromtxt('samples/testpc.csv', delimiter=',')
+    y = get_labels('../samples/testpc.label')
+    ShowPC.draw_pc_sem_ins(x, y)

@@ -11,7 +11,7 @@ def sample(points, thresh=1000):
     return points[np.random.choice(points.shape[0], thresh, replace=False), :]
 
 class voxelize:
-    def __init__(self, pc_array, div_factor=15):
+    def __init__(self, pc_array, div_factor=20):
         self.pc = pc_array
         self.N = pc_array.shape[0]
 
@@ -90,7 +90,8 @@ class voxelize:
                             # Get list of points of xy-populated point cloud within current voxel z bounds
                             xyz_occ = xy_occ[(voxel[4] < xy_occ[:, 2]) & (voxel[5] > xy_occ[:, 2])]
                             # check point population thresholding: greater than small input %, smaller than 20000 points
-                            if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 20000:
+                            if xyz_occ.shape[0] >= round(occ_thresh * self.N):
+                            # if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 5000:
                                 # add points to list
                                 self.voxel_points.append(xyz_occ)
                                 # update total point count
@@ -98,12 +99,12 @@ class voxelize:
                                 # add current voxel to array of occupied voxels
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
                             # if point population greater than 20000 (optimal count)
-                            elif xyz_occ.shape[0] > 20000:
-                                # random sampling
-                                downsampled = sample(xyz_occ, thresh=20000)
-                                self.voxel_points.append(downsampled)
-                                self.pcount += downsampled.shape[0]
-                                self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
+                            # elif xyz_occ.shape[0] > 5000:
+                            #     random sampling
+                                # downsampled = sample(xyz_occ, thresh=5000)
+                                # self.voxel_points.append(downsampled)
+                                # self.pcount += downsampled.shape[0]
+                                # self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         # delete empty row of occupied voxel array
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
 
