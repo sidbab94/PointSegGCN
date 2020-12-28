@@ -20,25 +20,6 @@ def kdtree(points, nn):
     dist, idx = search.kneighbors(points)
     return dist[:, 1:], idx[:, 1:]
 
-def show(pts, graph):
-    point_size = 0.005
-    edge_size = 0.001
-    G = nx.convert_node_labels_to_integers(graph)
-    scalars = np.array(list(G.nodes())) + 5
-    pts = mlab.points3d(
-        pts[:, 0],
-        pts[:, 1],
-        pts[:, 2],
-        scalars,
-        scale_factor=point_size,
-        scale_mode="none",
-        colormap="Blues",
-        resolution=20)
-    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
-    tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
-    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
-    pts.glyph.scale_mode = 'data_scaling_off'
-
 def adjacency(points, nn=5, labels=None):
     # Obtain distances and indices of nearest {nn} neighbours of all points
     dist, idx = kdtree(points[:, :3], nn)
