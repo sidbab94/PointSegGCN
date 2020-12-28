@@ -1,5 +1,5 @@
 import numpy as np
-import yaml
+from yaml import safe_load
 from os import listdir
 from os.path import join
 import os
@@ -88,10 +88,35 @@ class PCGraph(Dataset):
             self.list_of_graphs.append(Graph(x=x, a=a, y=y))
 
 
-def get_split_files(dataset_path, cfg, count=-1):
-    train_seqs = cfg["train"]
-    val_seqs = cfg["valid"]
-    test_seqs = cfg["test"]
+def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg='config/tr_config.yml'):
+    semkitti_cfg = safe_load(open(dataset_cfg, 'r'))
+    tr_params = safe_load(open(train_cfg, 'r'))['training_params']
+
+    split_params = semkitti_cfg['split']
+
+    seq_list = np.sort(listdir(base_dir))
+
+    tr_dict = {'ep': tr_params['epochs'],
+               'num_classes': tr_params['num_classes'],
+               'patience': tr_params['es_patience'],
+               'l2_reg': tr_params['l2_reg'],
+               'n_node_features': tr_params['n_node_features'],
+               'learning_rate':  tr_params['learning_rate'],
+               'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
+               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs'])}
+
+    semkitti_dict = {'tr_seq': list(seq_list[split_params['train']]),
+                     'va_seq': list(seq_list[split_params['valid']]),
+                     'te_seq': list(seq_list[split_params['test']]),
+                     'class_ignore': semkitti_cfg["learning_ignore"]}
+
+    return tr_dict, semkitti_dict
+
+
+def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
+    train_seqs = cfg["tr_seq"]
+    val_seqs = cfg["va_seq"]
+    test_seqs = cfg["te_seq"]
 
     train_file_list = []
     test_file_list = []
@@ -101,17 +126,21 @@ def get_split_files(dataset_path, cfg, count=-1):
     for seq_id in seq_list:
         seq_path = join(dataset_path, seq_id)
         pc_path = join(seq_path, 'velodyne')
-
-        if int(seq_id) in train_seqs:
+        if seq_id in train_seqs:
             train_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:count]])
-        elif int(seq_id) in val_seqs:
+        elif seq_id in val_seqs:
             val_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:count*2]])
-        elif int(seq_id) in test_seqs:
+        elif seq_id in test_seqs:
             test_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path)[:count])])
 
     train_file_list = np.concatenate(train_file_list, axis=0)
     val_file_list = np.concatenate(val_file_list, axis=0)
     test_file_list = np.concatenate(test_file_list, axis=0)
+
+    if shuffle:
+        np.random.shuffle(train_file_list)
+        np.random.shuffle(val_file_list)
+        np.random.shuffle(test_file_list)
 
     return train_file_list, val_file_list, test_file_list
 
@@ -139,7 +168,7 @@ def load_label_kitti(label_path, remap_lut):
 def get_labels(label_path):
     assert os.path.isfile('./config/semantic-kitti.yaml')
     # label mapping with semantic-kitti config file
-    DATA = yaml.safe_load(open('./config/semantic-kitti.yaml', 'r'))
+    DATA = safe_load(open('./config/semantic-kitti.yaml', 'r'))
     remap_dict_val = DATA["learning_map"]
     max_key = max(remap_dict_val.keys())
     remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
@@ -151,7 +180,7 @@ def to_labels(label_array, store_path):
     upper_half = label_array >> 16  # get upper half for instances
     lower_half = label_array & 0xFFFF  # get lower half for semantics
 
-    DATA = yaml.safe_load(open('config/semantic-kitti.yaml', 'r'))
+    DATA = safe_load(open('config/semantic-kitti.yaml', 'r'))
     remap_dict_val = DATA["learning_map_inv"]
     max_key = max(remap_dict_val.keys())
     remap_lut = np.zeros((max_key + 100), dtype=np.int32)
