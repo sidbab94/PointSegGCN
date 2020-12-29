@@ -1,12 +1,17 @@
 import numpy as np
 
 class iouEval:
-    def __init__(self, n_classes, ignore=None):
+    def __init__(self, n_classes, class_ignore=None):
         # classes
         self.n_classes = n_classes
 
+        if class_ignore is not None:
+            # what to ignore for eval
+            self.class_ignore = class_ignore
+            self.get_ignore()
+
         # What to include and ignore from the means
-        self.ignore = np.array(ignore, dtype=np.int64)
+        self.ignore = np.array(self.ignore_list, dtype=np.int64)
         self.include = np.array(
             [n for n in range(self.n_classes) if n not in self.ignore], dtype=np.int64)
         # print("[IOU EVAL] IGNORE: ", self.ignore)
@@ -65,6 +70,14 @@ class iouEval:
 
     def get_confusion(self):
         return self.conf_matrix.copy()
+
+    def get_ignore(self):
+        self.ignore_list = []
+        for cl, ign in self.class_ignore.items():
+            if ign:
+                x_cl = int(cl)
+                self.ignore_list.append(x_cl)
+                print("     Ignoring cross-entropy class ", x_cl, " in IoU evaluation")
 
 
 if __name__ == "__main__":
