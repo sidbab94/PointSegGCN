@@ -33,7 +33,7 @@ class ScanVis:
 
         self.pred_sem_view = vispy.scene.widgets.ViewBox(
             border_color='red', parent=self.canvas.scene)
-        self.grid.add_widget(self.orig_sem_view, 1, 0)
+        self.grid.add_widget(self.pred_sem_view, 1, 0)
         self.pred_sem_vis = visuals.Markers()
         self.pred_sem_view.camera = 'turntable'
         self.pred_sem_view.add(self.pred_sem_vis)

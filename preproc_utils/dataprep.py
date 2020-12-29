@@ -101,16 +101,15 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                'patience': tr_params['es_patience'],
                'l2_reg': tr_params['l2_reg'],
                'n_node_features': tr_params['n_node_features'],
-               'learning_rate':  tr_params['learning_rate'],
+               'learning_rate': tr_params['learning_rate'],
                'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
-               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs'])}
+               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
+               'tr_seq': list(seq_list[split_params['train']]),
+               'va_seq': list(seq_list[split_params['valid']]),
+               'te_seq': list(seq_list[split_params['test']]),
+               'class_ignore': semkitti_cfg["learning_ignore"]}
 
-    semkitti_dict = {'tr_seq': list(seq_list[split_params['train']]),
-                     'va_seq': list(seq_list[split_params['valid']]),
-                     'te_seq': list(seq_list[split_params['test']]),
-                     'class_ignore': semkitti_cfg["learning_ignore"]}
-
-    return tr_dict, semkitti_dict
+    return tr_dict
 
 
 def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
