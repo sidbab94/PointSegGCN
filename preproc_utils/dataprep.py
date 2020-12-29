@@ -101,16 +101,15 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                'patience': tr_params['es_patience'],
                'l2_reg': tr_params['l2_reg'],
                'n_node_features': tr_params['n_node_features'],
-               'learning_rate':  tr_params['learning_rate'],
-               'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
-               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs'])}
+               'learning_rate': tr_params['learning_rate'],
+               'lr_decay': tr_params['lr_decay_steps'],
+               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
+               'tr_seq': list(seq_list[split_params['train']]),
+               'va_seq': list(seq_list[split_params['valid']]),
+               'te_seq': list(seq_list[split_params['test']]),
+               'class_ignore': semkitti_cfg["learning_ignore"]}
 
-    semkitti_dict = {'tr_seq': list(seq_list[split_params['train']]),
-                     'va_seq': list(seq_list[split_params['valid']]),
-                     'te_seq': list(seq_list[split_params['test']]),
-                     'class_ignore': semkitti_cfg["learning_ignore"]}
-
-    return tr_dict, semkitti_dict
+    return tr_dict
 
 
 def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
@@ -165,11 +164,11 @@ def load_label_kitti(label_path, remap_lut):
     return sem_label.astype(np.int32)
 
 
-def get_labels(label_path):
-    assert os.path.isfile('./config/semantic-kitti.yaml')
+def get_labels(label_path, cfg):
+    # assert os.path.isfile('./config/semantic-kitti.yaml')
     # label mapping with semantic-kitti config file
-    DATA = safe_load(open('./config/semantic-kitti.yaml', 'r'))
-    remap_dict_val = DATA["learning_map"]
+    # DATA = safe_load(open('./config/semantic-kitti.yaml', 'r'))
+    remap_dict_val = cfg["learning_map"]
     max_key = max(remap_dict_val.keys())
     remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
     remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())

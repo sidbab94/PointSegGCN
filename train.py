@@ -7,7 +7,7 @@ from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from preproc_utils.dataprep import get_split_files, get_cfg_params
 from train_utils.lovasz_loss import lovasz_softmax_flat
 from batch_gen import process_single
-from train_utils.eval_met import iouEval
+from train_utils.eval_metrics import iouEval
 from model import res_model_1 as network
 
 
@@ -55,10 +55,7 @@ def train_ckpt_loop(train_cfg, restore_ckpt=False):
 
     if restore_ckpt:
         ckpt.restore(manager.latest_checkpoint)
-        if manager.latest_checkpoint:
-            print("Restored from {}".format(manager.latest_checkpoint))
-        else:
-            print("Initializing from scratch.")
+        print("Restored from {}".format(manager.latest_checkpoint))
 
     va_miou = 0.0
 
@@ -73,6 +70,9 @@ def train_ckpt_loop(train_cfg, restore_ckpt=False):
 
         if epoch == loss_switch_ep:
             lovasz = True
+            print('//////////////////////////////////////////////////////////////////////////////////')
+            print('Switching loss function to Lovàsz-Softmax..')
+            print('//////////////////////////////////////////////////////////////////////////////////')
 
         for tr_file in train_files:
             tr_inputs = process_single(tr_file)
@@ -111,31 +111,30 @@ def train_ckpt_loop(train_cfg, restore_ckpt=False):
                       va_loss, va_miou * 100))
 
         ckpt.step.assign_add(1)
-        if (int(ckpt.step) % 10 == 0) and (va_miou > prev_va_miou):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
+        if (int(ckpt.step) % 5 == 0) and (va_miou > prev_va_miou):
+            print('----------------------------------------------------------------------------------')
             save_path = manager.save()
+            weights_path = './ckpt_weights/' + current_time
             print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+            print("Saved weights for step {}: {}".format(int(ckpt.step), weights_path))
+            model.save_weights(weights_path, overwrite=False)
+            print('----------------------------------------------------------------------------------')
 
 
 if __name__ == '__main__':
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 
-    train_cfg, semkitti_cfg = get_cfg_params(base_dir=BASE_DIR)
+    train_cfg = get_cfg_params(base_dir=BASE_DIR)
 
     TRIAL = True
 
     if TRIAL:
-        train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=semkitti_cfg, shuffle=True, count=100)
+        train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=train_cfg, shuffle=True, count=100)
     else:
-        train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=semkitti_cfg, shuffle=True)
+        train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=train_cfg, shuffle=True)
 
-    class_ignore = semkitti_cfg["class_ignore"]
-    ignore = []
-    for cl, ign in class_ignore.items():
-        if ign:
-            x_cl = int(cl)
-            ignore.append(x_cl)
-            print("     Ignoring cross-entropy class ", x_cl, " in IoU evaluation")
-
+    class_ignore = train_cfg["class_ignore"]
 
     model = network(train_cfg)
     model.summary()
@@ -149,7 +148,7 @@ if __name__ == '__main__':
     loss_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
 
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
-    manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=3)
+    manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
 
     current_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
     train_log_dir = 'TB_logs/' + current_time + '/train'
@@ -161,8 +160,8 @@ if __name__ == '__main__':
 
     num_classes = train_cfg['num_classes']
     patience = train_cfg['patience']
-    train_miou = iouEval(num_classes, ignore)
-    val_miou = iouEval(num_classes, ignore)
+    train_miou = iouEval(num_classes, class_ignore)
+    val_miou = iouEval(num_classes, class_ignore)
 
     print('     TRAINING START...')
     print('----------------------------------------------------------------------------------')

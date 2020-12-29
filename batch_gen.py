@@ -22,8 +22,8 @@ class Graph:
                .format(self.x.shape[0], self.x.shape[1], self.y.shape[0])
 
 
-def process_single(file_path):
-    pc, labels = xy_data(file_path)
+def process_single(file_path, config):
+    pc, labels = xy_data(file_path, config)
     A = adjacency(pc)
     A = GCNConv.preprocess(A)
     A = sp_matrix_to_sp_tensor(A)
@@ -65,13 +65,13 @@ def process(files, vox=False, shuffle=False):
 
     return batch_data
 
-def xy_data(pc_path):
+def xy_data(pc_path, config):
     pc = read_bin_velodyne(pc_path)
     path_split = pc_path.split('\\')
     scan_no = (path_split[-1]).split('.')[0]
     seq_dir = os.path.join(path_split[0], path_split[1])
     label_path = os.path.join('labels', scan_no + '.label')
-    labels = get_labels(os.path.join(seq_dir, label_path))
+    labels = get_labels(os.path.join(seq_dir, label_path), config)
     return pc, labels
 
 def get_scan_data(base_dir, seq_path, id=0):

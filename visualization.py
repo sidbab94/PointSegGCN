@@ -239,7 +239,11 @@ class ShowPC:
 
 
 if __name__ == '__main__':
-    from dataprep import get_labels
-    x = np.genfromtxt('samples/testpc.csv', delimiter=',')
-    y = get_labels('../samples/testpc.label')
+    from preproc_utils.dataprep import get_labels, read_bin_velodyne
+    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+    # x = np.genfromtxt('samples/testpc.csv', delimiter=',')
+    # y = get_labels('../samples/testpc.label')
+    pc = os.path.join(BASE_DIR, '08', 'velodyne', '000000.bin')
+    x = read_bin_velodyne(pc)
+    y = get_labels(os.path.join(BASE_DIR, '08', 'labels', '000000.label'))
     ShowPC.draw_pc_sem_ins(x, y)
