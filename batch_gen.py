@@ -4,8 +4,9 @@ import random
 from preproc_utils.voxelization import voxelize
 from preproc_utils.graph_gen import adjacency
 from preproc_utils.dataprep import read_bin_velodyne, get_labels
-from spektral.layers import GCNConv
+from spektral.layers import GCNConv, ChebConv
 from spektral.layers.ops import sp_matrix_to_sp_tensor
+from spektral.utils.convolution import normalized_adjacency
 
 class Graph:
     def __init__(self, x=None, a=None, y=None):
@@ -22,12 +23,32 @@ class Graph:
                .format(self.x.shape[0], self.x.shape[1], self.y.shape[0])
 
 
-def process_single(file_path, config):
+def process_single(file_path, config, verbose=False):
     pc, labels = xy_data(file_path, config)
     A = adjacency(pc)
+    if verbose:
+        print('     Preprocessing ', file_path)
     A = GCNConv.preprocess(A)
     A = sp_matrix_to_sp_tensor(A)
     return (pc, A, labels)
+
+def voxel(pc):
+    pc = np.insert(pc, 3, np.arange(start=0, stop=pc.shape[0]), axis=1)
+    grid = voxelize(pc)
+    grid.get_voxels()
+    vox_pc_map = grid.voxel_points
+    return vox_pc_map
+
+def process_voxel(vox_pc_map, vox_id, labels):
+    vox_pts = vox_pc_map[vox_id]
+    vox_pts_ids = vox_pts[:, -1].astype('int')
+    vox_labels = labels[vox_pts_ids]
+    assert vox_labels.shape[0] == vox_pts.shape[0]
+    A = adjacency(vox_pts)
+    # A = GCNConv.preprocess(A)
+    A = normalized_adjacency(A)
+    A = sp_matrix_to_sp_tensor(A)
+    return (vox_pts[:, :3], A, vox_labels)
 
 
 def process(files, vox=False, shuffle=False):
