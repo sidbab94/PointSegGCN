@@ -7,9 +7,17 @@ class unPool(tf.keras.layers.Layer):
 
     def call(self, pooled_inputs):
         X_pool, A_pool, S = pooled_inputs
+        A_pool = dense_to_sparse()(A_pool)
+
         ST = tf.transpose(S)
         A_ST = tf.sparse.sparse_dense_matmul(A_pool, ST)
         S_A_ST = tf.matmul(S, A_ST)
+
+        # S_A = tf.sparse.sparse_dense_matmul(S, A_pool)
+        # print(S_A.shape)
+        # ST = tf.transpose(S)
+        # S_A_ST = tf.matmul(S_A, ST)
+
         A_unpool = S_A_ST
 
         X_unpool = ops.matmul_A_B(S, X_pool)
