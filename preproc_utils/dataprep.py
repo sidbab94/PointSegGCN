@@ -87,6 +87,8 @@ class PCGraph(Dataset):
             a = adjacency(x)
             self.list_of_graphs.append(Graph(x=x, a=a, y=y))
 
+np.random.seed(19)
+
 
 def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg='config/tr_config.yml'):
     semkitti_cfg = safe_load(open(dataset_cfg, 'r'))
@@ -107,7 +109,8 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                'tr_seq': list(seq_list[split_params['train']]),
                'va_seq': list(seq_list[split_params['valid']]),
                'te_seq': list(seq_list[split_params['test']]),
-               'class_ignore': semkitti_cfg["learning_ignore"]}
+               'class_ignore': semkitti_cfg["learning_ignore"],
+               'learning_map': semkitti_cfg["learning_map"]}
 
     return tr_dict
 
@@ -128,7 +131,7 @@ def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
         if seq_id in train_seqs:
             train_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:count]])
         elif seq_id in val_seqs:
-            val_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:count*2]])
+            val_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:round(count*1.0)]])
         elif seq_id in test_seqs:
             test_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path)[:count])])
 
@@ -164,11 +167,8 @@ def load_label_kitti(label_path, remap_lut):
     return sem_label.astype(np.int32)
 
 
-def get_labels(label_path):
-    assert os.path.isfile('./config/semantic-kitti.yaml')
-    # label mapping with semantic-kitti config file
-    DATA = safe_load(open('./config/semantic-kitti.yaml', 'r'))
-    remap_dict_val = DATA["learning_map"]
+def get_labels(label_path, config):
+    remap_dict_val = config["learning_map"]
     max_key = max(remap_dict_val.keys())
     remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
     remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
