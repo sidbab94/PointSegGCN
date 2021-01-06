@@ -30,7 +30,6 @@ def get_apply_grad_fn():
     return apply_grad
 
 
-
 # @tf.function(input_signature=[[tf.TensorSpec(shape=tf.TensorShape(None), dtype=tf.float32),
 #                                tf.SparseTensorSpec(shape=tf.TensorShape(None), dtype=tf.float32)],
 #              tf.TensorSpec(shape=tf.TensorShape(None), dtype=tf.int32)])
@@ -38,7 +37,7 @@ def get_apply_grad_fn():
 def grad_func(inputs, target):
     with tf.GradientTape() as tape:
         predictions = model(inputs, training=True)
-        curr_tr_loss = lovasz_softmax_flat(predictions, target)
+        curr_tr_loss = loss_cross_entropy(target, predictions)
 
     gradients = tape.gradient(curr_tr_loss, model.trainable_variables)
     opt.apply_gradients(zip(gradients, model.trainable_variables))
