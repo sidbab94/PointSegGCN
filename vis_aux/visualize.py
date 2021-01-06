@@ -100,32 +100,65 @@ class ScanVis:
 
 
 class o3d_vis:
-    def __init__(self, scan_file, orig_labels, imsize=None, K=None, Rot=None, pred_labels=None):
-        self.scan_file = scan_file
-        self.orig_labels = orig_labels
-        self.pred_labels = pred_labels
-        self.tr = Rot
-        pc = read_bin_velodyne(scan_file)
+    def __init__(self, scan_file, rgb_data, lidar_to_camera=False):
+        self.pc = scan_file
+
+        if isinstance(self.pc, str):
+            self.pc = read_bin_velodyne(scan_file)
 
         self.pc_obj = o3d.geometry.PointCloud()
-        self.pc_obj.points = o3d.utility.Vector3dVector(pc[:, 0:3])
-        # self.pc_obj.colors = o3d.utility.Vector3dVector(rgb)
+        self.pc_obj.points = o3d.utility.Vector3dVector(self.pc[:, 0:3])
 
-        self.transform()
+        if lidar_to_camera:
+            self.pc_obj.colors = o3d.utility.Vector3dVector(rgb_data)
 
-        o3d.visualization.draw_geometries([self.pc_obj])
+        self.vis = o3d.visualization.Visualizer()
+        self.vis.create_window()
+        self.vis.add_geometry(self.pc_obj)
 
-        # color = o3d.geometry.Image(rgb)
-        # o3d.visualization.draw_geometries([color])
+        self.vis.run()
+        self.vis.destroy_window()
+
+    def rotate_view(self):
+        ctr = self.vis.get_view_control()
+        ctr.rotate(10.0, 0.0)
+        return False
 
     def transform(self):
         self.pc_obj.transform(self.tr)
         self.pc_obj.transform([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
 
-    # def color_points(self):
+    def get_camera_params(self, calib, img_size):
+
+        self.calib = calib
+        self.h, self.w = img_size
+
+        K = self.calib['P2'].reshape((3, 4))
+        ext = np.vstack((self.calib['Tr'].reshape(3, 4), np.array([0., 0., 0., 1.])))
+
+        f_x, f_y = K[0, 0] * self.w, K[1, 1] * self.w
+        c_x, c_y = self.h/2 - 0.5, self.w/2 - 0.5
+
+        int = o3d.camera.PinholeCameraIntrinsic()
+        int.set_intrinsics(width=self.w, height=self.h,
+                           fx=f_x, fy=f_y, cx=c_x, cy=c_y)
+
+        self.camera_params = o3d.camera.PinholeCameraParameters()
+        self.camera_params.extrinsic = ext
+        self.camera_params.intrinsic = int
 
 
 
+
+def custom_draw_geometry_with_rotation(pcd):
+
+    def rotate_view(vis):
+        ctr = vis.get_view_control()
+        ctr.rotate(0.0, 2.0)
+        return False
+
+    o3d.visualization.draw_geometries_with_animation_callback([pcd],
+                                                              rotate_view)
 
 
 
@@ -144,7 +177,3 @@ if __name__ == '__main__':
     nclasses = len(color_dict)
     scan = SemLaserScan(nclasses, color_dict, project=True)
 
-    vis = ScanVis(scan_object=scan,
-                  scan_file=pc,
-                  label_file=y)
-    vis.run()
