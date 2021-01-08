@@ -4,7 +4,7 @@ import cv2
 from yaml import safe_load
 import matplotlib.pyplot as plt
 
-from preproc_utils.dataprep import read_bin_velodyne
+from _redundant.dataprep import read_bin_velodyne
 from visualization import ShowPC
 
 def project_velo_to_cam2(calib):
@@ -102,7 +102,7 @@ def render_lidar_on_image(pts_velo, img, calib, img_width, img_height):
     plt.show()
     return img
 
-def lidar_camfov_map(pc_velo, calib, img, vis=False):
+def lidar_rgb_render(pc_velo, calib, img, vis=False):
 
     img_height, img_width, _ = img.shape
 
@@ -145,9 +145,11 @@ def lidar_camfov_map(pc_velo, calib, img, vis=False):
         ShowPC.draw_pc(mod_pc_velo)
         ShowPC.draw_pc(pc_cam_rgb)
 
+    return pc_cam_rgb, inds
+
 if __name__ == '__main__':
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-    cfg = safe_load(open('config/semantic-kitti.yaml', 'r'))
+    cfg = safe_load(open('../config/semantic-kitti.yaml', 'r'))
     seq_list = np.sort(os.listdir(BASE_DIR))
 
     seq_no = 0
@@ -164,7 +166,8 @@ if __name__ == '__main__':
     pc_velo = read_bin_velodyne(velo_file)
     calib = read_calib_file(calib_file)
     rgb = cv2.cvtColor(cv2.imread(img_file), cv2.COLOR_BGR2RGB)
+    # rgb = cv2.imread(img_file)
     img_height, img_width, img_channel = rgb.shape
 
     # render_lidar_on_image(pc_velo, rgb, calib, img_width, img_height)
-    lidar_camfov_map(pc_velo, calib, rgb)
+    lidar_camfov_map(pc_velo, calib, rgb, vis=True)
