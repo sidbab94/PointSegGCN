@@ -67,7 +67,6 @@ def res_model_2(tr_params):
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
-    I_in = Input(shape=(), name='segment_ids_in', dtype=tf.int32)
 
     X_1 = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg), name='gcn_1')([X_in, A_in])
 
@@ -75,7 +74,7 @@ def res_model_2(tr_params):
 
     X_3 = conv_block((X_2, A_in), 64, 3, l2_reg=l2_reg)
 
-    X_4 = conv_block((X_3, A_in, I_in), 64, 4, dropout=True, l2_reg=l2_reg)
+    X_4 = conv_block((X_3, A_in), 64, 4, dropout=True, l2_reg=l2_reg)
 
     X_5 = conv_block((X_4, A_in), 64, 5, dropout=True, l2_reg=l2_reg)
     X_6 = Add(name='add_5_3')([X_5, X_3])
@@ -88,7 +87,7 @@ def res_model_2(tr_params):
 
     output = GCNConv(num_classes, activation='softmax', name='gcn_output')([X_10, A_in])
 
-    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='GraphSEG_v4')
+    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v4')
 
     return model
 
