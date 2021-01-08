@@ -1,11 +1,8 @@
 import os
 os.environ['ETS_TOOLKIT'] = 'qt4'
 import numpy as np
-from numpy import random
-import colorsys
 from mayavi import mlab
 import networkx as nx
-import yaml
 import open3d as o3d
 
 os.chdir(os.getcwd())
@@ -159,53 +156,66 @@ def show_voxel(vox_pts, graph, vis_scale):
                   zmin - pad[2], zmax - pad[2])
 
 
-def cmap_cfg():
-    semkitti = yaml.safe_load(open('./config/semantic-kitti.yaml', 'r'))
-    bgr_map = np.array(list(semkitti['color_map'].values()))
-    # rgb_map = np.empty_like(bgr_map)
-    # rgb_map[:, 0] = bgr_map[:, 2]
-    # rgb_map[:, 1] = bgr_map[:, 1]
-    # rgb_map[:, 2] = bgr_map[:, 0]
-    return bgr_map/255
 
+class PC_Vis:
 
-class ShowPC:
     @staticmethod
-    def random_colors(N, bright=True, seed=0):
-        brightness = 1.0 if bright else 0.7
-        hsv = [(0.15 + i / float(N), 1, brightness) for i in range(N)]
-        colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
-        random.seed(seed)
-        random.shuffle(colors)
-        return colors
+    def eval(pc, y_true, cfg, y_pred=None):
+
+        orig_pc_wlabels = PC_Vis.draw_pc_sem_ins(pc, y_true, cfg)
+        orig_pc_wlabels_obj = PC_Vis.draw_pc(orig_pc_wlabels)
+
+        if y_pred is not None:
+
+            pred_pc_wlabels = PC_Vis.draw_pc_sem_ins(pc, y_pred, cfg)
+            pred_pc_wlabels_obj = PC_Vis.draw_pc(pred_pc_wlabels)
+
+            vis = o3d.visualization.Visualizer()
+            vis.create_window(window_name='Ground Truth', width=960, height=985, left=0, top=40)
+            vis.add_geometry(orig_pc_wlabels_obj)
+
+            vis2 = o3d.visualization.Visualizer()
+            vis2.create_window(window_name='Predicted', width=960, height=985, left=960, top=40)
+            vis2.add_geometry(pred_pc_wlabels_obj)
+
+        else:
+
+            vis = o3d.visualization.Visualizer()
+            vis.create_window(window_name='Ground Truth')
+            vis.add_geometry(orig_pc_wlabels_obj)
+
+        while True:
+            if not vis.poll_events():
+                break
+            vis.update_renderer()
+
+            if y_pred is not None:
+                if not vis2.poll_events():
+                    break
+                vis2.update_renderer()
+
+        vis.destroy_window()
+        if y_pred is not None:
+            vis2.destroy_window()
+
 
     @staticmethod
     def draw_pc(pc_xyzrgb):
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(pc_xyzrgb[:, 0:3])
         if pc_xyzrgb.shape[1] == 3:
-            o3d.visualization.draw_geometries([pc])
-            return 0
+            return pc
         if np.max(pc_xyzrgb[:, 3:6]) > 20:  ## 0-255
             pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6] / 255.)
         else:
             pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6])
-        o3d.visualization.draw_geometries([pc])
-        return 0
+        return pc
 
     @staticmethod
-    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, plot_colors=cmap_cfg()):
-        """
-        pc_xyz: 3D coordinates of point clouds
-        pc_sem_ins: semantic or instance labels
-        plot_colors: custom color list
-        """
-        if plot_colors is not None:
-            ins_colors = plot_colors
-        else:
-            ins_colors = ShowPC.random_colors(len(np.unique(pc_sem_ins)) + 1, seed=2)
-        # ins_colors = cmap_cfg(pc_sem_ins)
-        ##############################
+    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, cfg):
+
+        ins_colors = cfg['color_map']
+
         sem_ins_labels = np.unique(pc_sem_ins)
         sem_ins_bbox = []
         Y_colors = np.zeros((pc_sem_ins.shape[0], 3))
@@ -214,10 +224,7 @@ class ShowPC:
             if semins <= -1:
                 tp = [0, 0, 0]
             else:
-                if plot_colors is not None:
-                    tp = ins_colors[semins]
-                else:
-                    tp = ins_colors[id]
+                tp = ins_colors[semins]
 
             Y_colors[valid_ind] = tp
 
@@ -234,12 +241,13 @@ class ShowPC:
                 [[xmin, ymin, zmin], [xmax, ymax, zmax], [min(tp[0], 1.), min(tp[1], 1.), min(tp[2], 1.)]])
 
         Y_semins = np.concatenate([pc_xyz[:, 0:3], Y_colors], axis=-1)
-        ShowPC.draw_pc(Y_semins)
+
         return Y_semins
 
 
+
 if __name__ == '__main__':
-    from preproc_utils.dataprep import get_labels, read_bin_velodyne
+    from _redundant.dataprep import get_labels, read_bin_velodyne
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
     # x = np.genfromtxt('samples/testpc.csv', delimiter=',')
     # y = get_labels('../samples/testpc.label')
