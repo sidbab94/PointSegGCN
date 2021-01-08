@@ -15,12 +15,20 @@ def color_mask(dist_adj, labels):
 
     return dist_adj
 
+def sklearn_graph(points, nn=5):
+
+    search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
+    graph = search.kneighbors_graph(points)
+
+    return graph
+
+
 def kdtree(points, nn):
     search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
     dist, idx = search.kneighbors(points)
     return dist[:, 1:], idx[:, 1:]
 
-def adjacency(points, nn=5, labels=None):
+def compute_adjacency(points, nn=5, labels=None):
     # Obtain distances and indices of nearest {nn} neighbours of all points
     dist, idx = kdtree(points[:, :3], nn)
     M, k = dist.shape
@@ -53,9 +61,13 @@ def adjacency(points, nn=5, labels=None):
         # Modify wrt node colour information
         W = color_mask(W, labels)
 
-    return W
+    # return W
+    print(type(W), W.shape)
 
+if __name__ == '__main__':
+    from preproc_utils.readers import read_bin_velodyne
+    import os
+    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 
-if __name__ == "__main__":
-    pass
-
+    pc = os.path.join(BASE_DIR, '08', 'velodyne', '000000.bin')
+    x = read_bin_velodyne(pc)
