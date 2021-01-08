@@ -7,8 +7,8 @@ os.chdir(os.getcwd())
 
 import struct
 from spektral.data import Dataset, Graph
-from preproc_utils.graph_gen import adjacency
-from .voxelization import voxelize
+from preproc_utils.graph_gen import compute_adjacency
+from preproc_utils.voxelization import voxelize
 
 
 class PCGraph(Dataset):
@@ -81,10 +81,10 @@ class PCGraph(Dataset):
                 vox_pts_ids = vox_pts[:, -1].astype('int')
                 vox_labels = y[vox_pts_ids]
                 print(np.unique(vox_labels))
-                a = adjacency(vox_pts)
+                a = compute_adjacency(vox_pts)
                 self.list_of_graphs.append(Graph(x=vox_pts, a=a, y=vox_labels))
         else:
-            a = adjacency(x)
+            a = compute_adjacency(x)
             self.list_of_graphs.append(Graph(x=x, a=a, y=y))
 
 np.random.seed(19)
