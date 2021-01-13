@@ -1,5 +1,9 @@
+from os import listdir
+from os.path import join
 import numpy as np
 import struct
+from yaml import safe_load
+
 
 def read_bin_velodyne(pc_path):
     pc_list = []
@@ -46,3 +50,63 @@ def read_calib_file(filepath):
                 pass
     return data
 
+
+def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
+    train_seqs = cfg["tr_seq"]
+    val_seqs = cfg["va_seq"]
+    test_seqs = cfg["te_seq"]
+
+    train_file_list = []
+    test_file_list = []
+    val_file_list = []
+    seq_list = np.sort(listdir(dataset_path))
+
+    for seq_id in seq_list:
+        seq_path = join(dataset_path, seq_id)
+        pc_path = join(seq_path, 'velodyne')
+        if seq_id in train_seqs:
+            train_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:count]])
+        elif seq_id in val_seqs:
+            val_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:round(count*1.0)]])
+        elif seq_id in test_seqs:
+            test_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path)[:count])])
+
+    train_file_list = np.concatenate(train_file_list, axis=0)
+    val_file_list = np.concatenate(val_file_list, axis=0)
+    test_file_list = np.concatenate(test_file_list, axis=0)
+
+    np.random.seed(234)
+
+    if shuffle:
+        np.random.shuffle(train_file_list)
+        np.random.shuffle(val_file_list)
+        np.random.shuffle(test_file_list)
+
+    return train_file_list, val_file_list, test_file_list
+
+
+def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg='config/tr_config.yml'):
+    semkitti_cfg = safe_load(open(dataset_cfg, 'r'))
+    tr_params = safe_load(open(train_cfg, 'r'))['training_params']
+
+    split_params = semkitti_cfg['split']
+
+    seq_list = np.sort(listdir(base_dir))
+
+    tr_dict = {'ep': tr_params['epochs'],
+               'num_classes': tr_params['num_classes'],
+               'patience': tr_params['es_patience'],
+               'batch_size': tr_params['batch_size'],
+               'l2_reg': tr_params['l2_reg'],
+               'n_node_features': tr_params['n_node_features'],
+               'learning_rate': tr_params['learning_rate'],
+               'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
+               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
+               'tr_seq': list(seq_list[split_params['train']]),
+               'va_seq': list(seq_list[split_params['valid']]),
+               'te_seq': list(seq_list[split_params['test']]),
+               'class_ignore': semkitti_cfg["learning_ignore"],
+               'learning_map': semkitti_cfg["learning_map"],
+               'color_map': np.array(list(semkitti_cfg['color_map'].values()))/255}
+
+    return tr_dict
