@@ -1,20 +1,22 @@
 import datetime
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
 from train_utils.loss_metrics import lovasz_softmax_flat
 from train_utils.eval_metrics import iouEval
-from model import res_model_2 as network
-from preprocess import *
+from model import res_model_1 as network
 
-# @tf.function(input_signature=[[tf.TensorSpec(shape=tf.TensorShape(None), dtype=tf.float32),
-#                                tf.SparseTensorSpec(shape=tf.TensorShape(None), dtype=tf.float32)],
-#              tf.TensorSpec(shape=tf.TensorShape(None), dtype=tf.int32)])
-# @tf.function
+from preprocess import *
+from preproc_utils.readers import get_cfg_params
+
 
 def grad_func(inputs, target, loss_fn):
+
     with tf.GradientTape() as tape:
         predictions = model(inputs, training=True)
         curr_tr_loss = loss_fn(target, predictions)
@@ -24,108 +26,141 @@ def grad_func(inputs, target, loss_fn):
 
     return predictions, curr_tr_loss
 
-def train_step(batch, prep_obj, lovasz=False, vox=False):
+def train_step(inputs, target, lovasz=False):
 
-    inputs = [batch[0], batch[1]]
-    target = batch[2]
+    X, A, _, = inputs
+    Y = np.concatenate(target).ravel()
 
     loss_fn = loss_cross_entropy
-    # train_miou.reset_states()
+
     if lovasz:
         loss_fn = lovasz_softmax_flat
 
-    if vox:
-        prep_obj.voxelize_scan()
-        no_voxels = len(prep_obj.vox_pc_map)
-
-        tr_loss = tr_miou = 0
-
-        for vox_id in range(no_voxels):
-
-            curr_voxel_data = prep_obj.assess_voxel(vox_id)
-
-            vox_inputs = [curr_voxel_data[0], curr_voxel_data[1]]
-            vox_target = curr_voxel_data[2]
-
-            predictions, curr_tr_loss = grad_func(vox_inputs, vox_target, loss_fn)
-
-            pred_labels = np.argmax(predictions, axis=-1)
-            # pred_labels = tf.argmax(predictions, axis=-1)
-
-            train_miou.addBatch(pred_labels, vox_target)
-            curr_tr_miou, _ = train_miou.getIoU()
-
-            # train_miou.update_state(vox_target, pred_labels)
-
-            tr_loss += curr_tr_loss
-            tr_miou += curr_tr_miou
-            # tr_miou += train_miou.result()
-
-        tr_loss, tr_miou = tr_loss / no_voxels, tr_miou / no_voxels
-
-    else:
-
-        predictions, tr_loss = grad_func(inputs, target, loss_fn)
-
-        pred_labels = np.argmax(predictions, axis=-1)
-        train_miou.addBatch(pred_labels, target)
-        tr_miou, _ = train_miou.getIoU()
+    predictions, tr_loss = grad_func([X, A], Y, loss_fn)
+    pred_labels = np.argmax(predictions, axis=-1)
+    train_miou.addBatch(pred_labels, Y)
+    tr_miou, _ = train_miou.getIoU()
 
     return tr_loss, tr_miou
 
-def evaluate(batch, prep_obj, lovasz=False, vox=False):
+def evaluate(loader, lovasz=False):
 
-    inputs = [batch[0], batch[1]]
-    target = batch[2]
+    va_output = []
+    step = 0
 
-    loss_fn = loss_cross_entropy
-    # val_miou.reset_states()
+    while step < loader.steps_per_epoch:
 
-    if lovasz:
-        loss_fn = lovasz_softmax_flat
+        step += 1
 
-    if vox:
-        prep_obj.voxelize_scan()
-        no_voxels = len(prep_obj.vox_pc_map)
+        inputs, target = loader.__next__()
+        X, A, _ = inputs
+        Y = np.concatenate(target).ravel()
 
-        va_loss = va_miou = 0
+        loss_fn = loss_cross_entropy
 
-        for vox_id in range(no_voxels):
+        if lovasz:
+            loss_fn = lovasz_softmax_flat
 
-            curr_voxel_data = prep_obj.assess_voxel(vox_id)
+        predictions = model([X, A], training=False)
 
-            vox_inputs = [curr_voxel_data[0], curr_voxel_data[1]]
-            vox_target = curr_voxel_data[2]
-
-            predictions = model(vox_inputs, training=False)
-
-            curr_va_loss = loss_fn(vox_target, predictions)
-
-            pred_labels = np.argmax(predictions, axis=-1)
-
-            val_miou.addBatch(pred_labels, vox_target)
-            curr_va_miou, _ = val_miou.getIoU()
-            # val_miou.update_state(vox_target, pred_labels)
-
-            va_loss += curr_va_loss
-            # va_miou += val_miou.result()
-            va_miou += curr_va_miou
-
-        va_loss, va_miou = va_loss / no_voxels, va_miou / no_voxels
-
-    else:
-        predictions = model(inputs, training=False)
-
-        va_loss = loss_fn(target, predictions)
+        va_loss = loss_fn(Y, predictions)
 
         pred_labels = np.argmax(predictions, axis=-1)
-        val_miou.addBatch(pred_labels, target)
+
+        val_miou.addBatch(pred_labels, Y)
         va_miou, _ = val_miou.getIoU()
 
-    return va_loss, va_miou
+        va_output.append([va_loss, va_miou])
 
-# @tf.function
-# @tf.autograph.experimental.do_not_convert
+    outs_avg = np.mean(va_output, 0)
+    outs_arr = np.array(outs_avg).flatten()
+
+    return outs_arr[0], outs_arr[1]
+
+
+def train_loop(save_weights=True):
+
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
+    manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
+
+    curr_batch = epoch = tr_loss = tr_miou = best_miou = 0
+    list_mious = [0.0]
+    best_va_loss = 9999.999
+    lovasz = False
+    loss_switch_ep = model_cfg['loss_switch_ep']
+
+
+    for batch in tr_loader:
+
+
+        outs = train_step(*batch, lovasz)
+
+        tr_loss += outs[0]
+        tr_miou += outs[1]
+        curr_batch += 1
+
+        if curr_batch == tr_loader.steps_per_epoch:
+
+            tr_loss /= tr_loader.steps_per_epoch
+            tr_miou /= tr_loader.steps_per_epoch
+            epoch += 1
+
+            va_loss, va_miou = evaluate(va_loader, lovasz)
+
+            with train_summary_writer.as_default():
+                tf.summary.scalar('loss', tr_loss, step=epoch)
+                tf.summary.scalar('mIoU', tr_miou * 100, step=epoch)
+
+            with summary_writer.as_default():
+                tf.summary.scalar('learning_rate',
+                                  opt._decayed_lr(tf.float32),
+                                  step=epoch)
+
+            with valid_summary_writer.as_default():
+                tf.summary.scalar('loss', va_loss, step=epoch)
+                tf.summary.scalar('mIoU', va_miou * 100, step=epoch)
+
+            print('Epoch: {} ||| '
+                  'Train loss: {:.4f}, Train MeanIoU: {:.4f} | '
+                  'Valid loss: {:.4f}, Valid MeanIoU: {:.4f} ||| '
+                  .format(epoch,
+                          tr_loss, tr_miou * 100,
+                          va_loss, va_miou * 100))
+
+
+            ckpt.step.assign_add(1)
+
+            if (int(ckpt.step) % 2 == 0):
+
+                print('----------------------------------------------------------------------------------')
+
+                save_path = manager.save()
+                weights_path = './ckpt_weights/' + tr_start_time
+                print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+
+                if (va_miou > np.max(list_mious)) and save_weights:
+
+                    print("Saved weights for step {}: {}".format(int(ckpt.step), weights_path))
+                    model.save_weights(weights_path, overwrite=True)
+                    best_va_loss = va_loss
+
+                print('----------------------------------------------------------------------------------')
+
+            list_mious.append(va_miou)
+
+            tr_loss = 0
+            tr_miou = 0
+            curr_batch = 0
+
+            if epoch == loss_switch_ep:
+
+                lovasz = True
+                print('//////////////////////////////////////////////////////////////////////////////////')
+                print('Switching loss function to Lovàsz-Softmax..')
+                print('//////////////////////////////////////////////////////////////////////////////////')
+
+
+
 def train_ckpt_loop(model_cfg, prep_obj, restore_ckpt=False, verbose=False, vox=False, save_weights=True):
     if restore_ckpt:
         ckpt.restore(manager.latest_checkpoint)
@@ -199,7 +234,7 @@ def train_ckpt_loop(model_cfg, prep_obj, restore_ckpt=False, verbose=False, vox=
             print('----------------------------------------------------------------------------------')
 
             save_path = manager.save()
-            weights_path = './ckpt_weights/' + current_time
+            weights_path = './ckpt_weights/' + tr_start_time
             print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
 
             if (va_miou > best_va_miou) and (va_loss < best_va_loss) and save_weights:
@@ -216,18 +251,13 @@ if __name__ == '__main__':
 
     model_cfg = get_cfg_params(base_dir=BASE_DIR)
 
-    TRIAL = True
-
-    if TRIAL:
-        train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=True, count=50)
-    else:
-        train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=True)
-
-    class_ignore = model_cfg["class_ignore"]
-
     prep = Preprocess(model_cfg)
-
     model = network(model_cfg)
+
+    tr_ds, va_ds = prep_datasets(BASE_DIR, prep, model_cfg, file_count=300, verbose=True)
+    tr_loader = prep_loader(tr_ds, model_cfg)
+    va_loader = prep_loader(va_ds, model_cfg)
+
     # model.summary()
 
     lr_schedule = ExponentialDecay(
@@ -238,35 +268,33 @@ if __name__ == '__main__':
     opt = Adam(learning_rate=lr_schedule)
     loss_cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy()
 
-    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
-    manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
+    # ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
+    # manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
 
-    current_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
-    train_log_dir = 'TB_logs/' + current_time + '/train'
-    valid_log_dir = 'TB_logs/' + current_time + '/valid'
-    gen_log_dir = 'TB_logs/' + current_time + '/general'
+    tr_start_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
+    train_log_dir = 'TB_logs/' + tr_start_time + '/train'
+    valid_log_dir = 'TB_logs/' + tr_start_time + '/valid'
+    gen_log_dir = 'TB_logs/' + tr_start_time + '/general'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     valid_summary_writer = tf.summary.create_file_writer(valid_log_dir)
     summary_writer = tf.summary.create_file_writer(gen_log_dir)
 
     num_classes = model_cfg['num_classes']
-    patience = model_cfg['patience']
-
+    class_ignore = model_cfg["class_ignore"]
     train_miou = iouEval(num_classes, class_ignore)
     val_miou = iouEval(num_classes, class_ignore)
-    # mean_loss_values = tf.metrics.Mean()
-    # train_miou = tf.keras.metrics.MeanIoU(num_classes)
-    # val_miou = tf.keras.metrics.MeanIoU(num_classes)
+
 
     print('     TRAINING START...')
     print('----------------------------------------------------------------------------------')
 
-    train_ckpt_loop(model_cfg, prep, vox=False)
+    # train_ckpt_loop(model_cfg, prep, vox=False)
+    train_loop()
 
     print('----------------------------------------------------------------------------------')
     print('     TRAINING END...')
 
-    save_path = 'models/infer_v2_1_res_rgb'
+    save_path = 'models/infer_v3_2_res_rgb_300_bs16'
     model.save(save_path)
     print('     Model saved to {}'.format(save_path))
     print('==================================================================================')
