@@ -1,6 +1,7 @@
 
 training_params:
-  epochs: 25
+  epochs: 80
+  batch_size: 16
   num_classes: 20
   learning_rate: 0.01
   lr_decay_steps: 1000
