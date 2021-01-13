@@ -18,7 +18,7 @@ def color_mask(dist_adj, labels):
 def sklearn_graph(points, nn=5):
 
     search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
-    graph = search.kneighbors_graph(points)
+    graph = search.kneighbors_graph(points, mode='connectivity')
 
     return graph
 
