@@ -1,9 +1,14 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Add, UpSampling1D, Lambda
+
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Add, UpSampling1D, Lambda, Concatenate
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
 from spektral.layers import GCNConv, GlobalMaxPool, ChebConv, MinCutPool, GCSConv
 from train_utils.tf_utils import unPool
+from spektral.layers.ops import sp_matrix_to_sp_tensor
 
 
 def conv_block(parents, filters, id, dropout=False, l2_reg=0.01):
@@ -25,36 +30,135 @@ def conv_block(parents, filters, id, dropout=False, l2_reg=0.01):
     return output
 
 
-def conv_relu_bn(parents, filters, id, dropout=False, l2_reg=0.01):
+def conv_relu_bn(parents, filters, dropout=False, l2_reg=0.01):
     X_in, A_in = parents
-    x = GCNConv(filters, activation='relu', kernel_regularizer=l2(l2_reg), name='gcn_' + str(id))([X_in, A_in])
-    x = BatchNormalization(name='bn_' + str(id))(x)
+    x = GCNConv(filters, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    x = BatchNormalization()(x)
     if dropout:
-        x = Dropout(0.1, name='do_' + str(id))(x)
+        x = Dropout(0.1)(x)
     return x
 
 
-def res_model_1(tr_params):
-    l2_reg = tr_params['l2_reg']
-    F = tr_params['n_node_features']
-    num_classes = tr_params['num_classes']
+class Res_Model_1(Model):
+
+    def __init__(self, model_cfg):
+        super(Res_Model_1, self).__init__()
+
+        self.l2_reg = model_cfg['l2_reg']
+        self.F = model_cfg['n_node_features']
+        self.num_classes = model_cfg['num_classes']
+
+        self.gcn = GCNConv(64, activation='relu', kernel_regularizer=l2(self.l2_reg), name='gcn_1')
+        self.gcn_out = GCNConv(self.num_classes, activation='softmax', name='gcn_out')
+
+    def call(self, inputs):
+
+        X_in, A_in = inputs
+
+        x = self.gcn([X_in, A_in])
+
+        x = conv_relu_bn((x, A_in), 64, 2, dropout=True)
+        x = conv_relu_bn((x, A_in), 64, 3, dropout=True)
+        # x = conv_relu_bn((x, A_in), 64, 4, dropout=True)
+
+        output = self.gcn_out([x, A_in])
+
+        return output
+
+    def pad_tensor(self, tensor, pad_lim=20005):
+
+        paddings = [[0, pad_lim - tf.shape(tensor)[0]], [0, pad_lim - tf.shape(tensor)[1]]]
+        a_out = tf.pad(tensor, paddings, 'CONSTANT')
+        print(a_out.shape)
+
+        return a_out
+
+def gcn_block(filters, do=False):
+
+    result = tf.keras.Sequential()
+    result.add(
+        GCNConv(filters, activation='relu', kernel_regularizer=l2(0.01)),
+    )
+    result.add(BatchNormalization())
+    if do:
+        result.add(Dropout(0.1))
+
+    return result
+
+def res_model_1(model_cfg):
+
+    l2_reg = model_cfg['l2_reg']
+    F = model_cfg['n_node_features']
+    num_classes = model_cfg['num_classes']
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
 
-    X_1 = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg), name='gcn_1')([X_in, A_in])
+    # X_1 = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg), name='gcn_1')([X_in, A_in])
+    #
+    # X_2 = conv_relu_bn((X_1, A_in), 64, 2, dropout=True, l2_reg=l2_reg)
+    #
+    # X_3 = Add(name='add_2')([X_2, X_1])
+    #
+    # X_4 = conv_relu_bn((X_3, A_in), 64, 3, dropout=True, l2_reg=l2_reg)
+    #
+    # X_5 = Add(name='add_4')([X_4, X_3])
+    #
+    # X_6 = conv_relu_bn((X_5, A_in), 64, 4, dropout=True, l2_reg=l2_reg)
+    #
+    # X_7 = Add(name='add_6')([X_5, X_1])
 
-    X_2 = conv_relu_bn((X_1, A_in), 64, 2, dropout=True, l2_reg=l2_reg)
-    X_3 = conv_relu_bn((X_2, A_in), 64, 3, dropout=True, l2_reg=l2_reg)
-    X_4 = conv_relu_bn((X_3, A_in), 64, 4, dropout=True, l2_reg=l2_reg)
+    # x = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    # X_1 = x
+    #
+    # # for i in range(3):
+    #
+    #     # x_prev = x
+    #     # x = conv_relu_bn((x_prev, A_in), 64, i+1, dropout=True, l2_reg=l2_reg)
+    #     # x = Add()([x, x_prev])
+    #
+    # x = Concatenate()([x, X_1])
 
-    X_5 = Add(name='add_4')([X_4, X_2])
+    levels = 4
 
-    X_6 = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg), name='gcn_8')([X_5, A_in])
+    # downstack = [gcn_block(64, True) for i in range(levels)]
+    # upstack = [gcn_block(64, True) for i in range(levels)]
+    #
+    # x = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    # X_1 = x
+    #
+    # skips = []
+    # for down in downstack:
+    #     x = down([x, A_in])
+    #     skips.append(x)
+    #
+    # skips = reversed(skips[:-1])
+    # for up, skip in zip(upstack, skips):
+    #     x = up([x, A_in])
+    #     x = Concatenate()([x, skip])
+    #
+    # x = Concatenate()([x, X_1])
 
-    X_7 = Add(name='add_6')([X_6, X_1])
+    skips = []
 
-    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([X_7, A_in])
+    x = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    X_1 = x
+
+    for i in range(levels):
+
+        x = conv_relu_bn((x, A_in), 32, True)
+        skips.append(x)
+
+    skips = reversed(skips[:-1])
+
+    for skip in skips:
+
+        x = conv_relu_bn((x, A_in), 32, True)
+        x = Concatenate()([x, skip])
+
+    x = Concatenate()([x, X_1])
+
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
 
     model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v2')
     return model
