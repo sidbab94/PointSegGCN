@@ -104,6 +104,40 @@ def get_scan_data(base_dir, seq_path, id=0):
      labels = get_labels(label_path)
      return pc, labels
 
+def process(files, vox=False, shuffle=False):
+    batch_data = []
+
+    for file_path in files:
+        pc, labels = xy_data(file_path)
+        pc = pc[:, :3]
+
+        if vox:
+            pc = np.insert(pc, 3, np.arange(start=0, stop=pc.shape[0]), axis=1)
+            grid = voxelize(pc)
+            grid.get_voxels()
+            vox_pc_map = grid.voxel_points
+            for vox_id in range(len(vox_pc_map)):
+                vox_pts = vox_pc_map[vox_id]
+                vox_pts_ids = vox_pts[:, -1].astype('int')
+                vox_labels = labels[vox_pts_ids]
+                assert vox_labels.shape[0] == vox_pts.shape[0]
+                A = adjacency(vox_pts)
+                A = GCNConv.preprocess(A)
+                A = sp_matrix_to_sp_tensor(A)
+                batch_data.append(Graph(x=vox_pts[:, :3], a=A, y=vox_labels))
+        else:
+            A = adjacency(pc)
+            A = GCNConv.preprocess(A)
+            A = sp_matrix_to_sp_tensor(A)
+
+            batch_data.append(Graph(x=pc[:, :3], a=A, y=labels))
+
+        if shuffle:
+            random.shuffle(batch_data)
+
+        print('     Graph Construction -- || {} || -- complete.'.format(file_path))
+
+    return batch_data
 
 if __name__ == '__main__':
     base_dir = 'D:/SemanticKITTI/dataset/sequences'
