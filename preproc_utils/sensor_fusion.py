@@ -17,32 +17,37 @@ class SensorFusion:
         self.proj_mat = self.project_velo_to_cam2()
 
         # apply projection
-        pts_2d = self.project_to_image()
+        try:
+            pts_2d = self.project_to_image()
 
-        # Filter lidar points to be within image FOV
-        inds = np.where((pts_2d[0, :] < img_width) & (pts_2d[0, :] >= 0) &
-                        (pts_2d[1, :] < img_height) & (pts_2d[1, :] >= 0) &
-                        (self.pc[:, 0] > 0)
-                        )[0]
+            # Filter lidar points to be within image FOV
+            inds = np.where((pts_2d[0, :] < img_width) & (pts_2d[0, :] >= 0) &
+                            (pts_2d[1, :] < img_height) & (pts_2d[1, :] >= 0) &
+                            (self.pc[:, 0] > 0)
+                            )[0]
 
-        # get 2d points corresponding to camera FOV and camera coordinates
-        imgfov_pc_pixel = pts_2d[:, inds].transpose()
+            # get 2d points corresponding to camera FOV and camera coordinates
+            imgfov_pc_pixel = pts_2d[:, inds].transpose()
 
-        # get rgb array for projected 2d points based on nearest-pixel values on orignal image
-        color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype='float64')
-        for i in range(imgfov_pc_pixel.shape[0]):
-            y_coord, x_coord = imgfov_pc_pixel[i]
-            val_x, val_y = int(round(x_coord)) - 1, int(round(y_coord)) - 1
-            color_array_pts2d[i] = self.img[val_x, val_y] / 255
+            # get rgb array for projected 2d points based on nearest-pixel values on orignal image
+            color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype='float64')
+            for i in range(imgfov_pc_pixel.shape[0]):
+                y_coord, x_coord = imgfov_pc_pixel[i]
+                val_x, val_y = int(round(x_coord)) - 1, int(round(y_coord)) - 1
+                color_array_pts2d[i] = self.img[val_x, val_y] / 255
 
-        # get lidar points corresponding to camera FOV and velodyne coordinates, color with mapped rgb values
-        imgfov_pc_velo = self.pc[inds, :]
+            # get lidar points corresponding to camera FOV and velodyne coordinates, color with mapped rgb values
+            imgfov_pc_velo = self.pc[inds, :]
 
-        pc_rgb = np.zeros((imgfov_pc_velo.shape[0], 6), dtype='float64')
-        pc_rgb[:, :3] = imgfov_pc_velo
-        pc_rgb[:, 3:] = color_array_pts2d
+            pc_rgb = np.zeros((imgfov_pc_velo.shape[0], 6), dtype='float64')
+            pc_rgb[:, :3] = imgfov_pc_velo
+            pc_rgb[:, 3:] = color_array_pts2d
 
-        labels_rgb = self.labels[inds]
+            labels_rgb = self.labels[inds]
+
+        except MemoryError:
+
+            return None, None
 
         return pc_rgb, labels_rgb
 
