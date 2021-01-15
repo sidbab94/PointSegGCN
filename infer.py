@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 import random
 from spektral.layers.ops import sp_matrix_to_sp_tensor
 from train_utils.eval_metrics import iouEval
-from model import res_model_2 as Net
+from model import Res_GCN_v1 as Net
 
 from preprocess import *
 from visualization import PC_Vis
@@ -74,12 +74,17 @@ def map_iou(y_true, y_pred, cfg):
 
     valid_y = np.unique(y_true)
 
+    label_list = list(cfg['labels'].keys())
+
     print('-----------------------')
-    for i in valid_y:
-        label_list = list(cfg['labels'].keys())
+    for i in range(cfg['num_classes']):
         curr_class = cfg['labels'][label_list[i]]
+        if i in valid_y:
+            curr_class = ' *** ' + curr_class + ' *** '
 
         print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou_dict[i], 2)))
+
+    print('\n ** Class present in Ground Truth')
 
     print('-----------------------')
     print('Mean IoU: ', te_miou * 100)
@@ -136,5 +141,5 @@ if __name__ == '__main__':
         # load_status.assert_consumed()
         print(loaded_model)
 
-    # test_single(test_file, loaded_model, cfg, prep, vis=True)
-    test_all(val_files, loaded_model, cfg, prep)
+    test_single(test_file, loaded_model, cfg, prep, vis=True)
+    # test_all(val_files, loaded_model, cfg, prep)
