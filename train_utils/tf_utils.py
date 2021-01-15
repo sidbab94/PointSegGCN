@@ -2,6 +2,14 @@ import tensorflow as tf
 from spektral.layers import ops
 
 class unPool(tf.keras.layers.Layer):
+    """
+    Performs an unpooling operation based on Min-Cut pooling
+    (https://danielegrattarola.github.io/posts/2019-07-25/mincut-pooling.html)
+
+    Call arguments:
+        pooled_inputs: pooled point cloud array, adjacency matrix and
+                        clustering mask produced by parent MinCut Pool layer
+    """
     def __init__(self):
         super(unPool, self).__init__()
 
@@ -13,11 +21,6 @@ class unPool(tf.keras.layers.Layer):
         A_ST = tf.sparse.sparse_dense_matmul(A_pool, ST)
         S_A_ST = tf.matmul(S, A_ST)
 
-        # S_A = tf.sparse.sparse_dense_matmul(S, A_pool)
-        # print(S_A.shape)
-        # ST = tf.transpose(S)
-        # S_A_ST = tf.matmul(S_A, ST)
-
         A_unpool = S_A_ST
 
         X_unpool = ops.matmul_A_B(S, X_pool)
@@ -26,6 +29,12 @@ class unPool(tf.keras.layers.Layer):
         return outputs
 
 class dense_to_sparse(tf.keras.layers.Layer):
+    """
+    Converts dense matrix back to sparse format
+
+    Call arguments:
+        dense: Dense matrix to convert
+    """
     def __init__(self):
         super(dense_to_sparse, self).__init__()
 

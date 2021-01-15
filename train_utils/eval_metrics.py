@@ -1,6 +1,14 @@
 import numpy as np
 
 class iouEval:
+    """
+    Computes Intersection-Over-Union (or Jaccard Index) of predictions.
+    IoU is the area of overlap between the predicted segmentation and the ground truth
+    divided by the area of union between the predicted segmentation and the ground truth.
+
+    Code reference: https://github.com/PRBonn/semantic-kitti-api
+    """
+
     def __init__(self, n_classes, class_ignore=None):
         # classes
         self.n_classes = n_classes

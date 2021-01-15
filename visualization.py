@@ -21,7 +21,7 @@ def create_8bit_rgb_lut():
 
 def rgb_2_scalar_idx(r, g, b):
     """
-
+    Converts an RGB array to a single scalar value
     :param r: Red value
     :param g: Green value
     :param b: Blue value
@@ -30,6 +30,17 @@ def rgb_2_scalar_idx(r, g, b):
     return 256**2 *r + 256 * g + b
 
 def cube_faces(xmin, xmax, ymin, ymax, zmin, zmax):
+    """
+    Voxel generation helper function
+
+    :param xmin: Min X axis bound
+    :param xmax: Max X axis bound
+    :param ymin: Min Y axis bound
+    :param ymax: Max Y axis bound
+    :param zmin: Min Z axis bound
+    :param zmax: Max Z axis bound
+    :return: Voxel faces to draw
+    """
     faces = []
 
     x, y = np.mgrid[xmin:xmax:3j, ymin:ymax:3j]
@@ -59,56 +70,34 @@ def cube_faces(xmin, xmax, ymin, ymax, zmin, zmax):
     return faces
 
 def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
+    """
+    Draws voxel mesh on Mayavi window
+    :param xmin: Min X axis bound
+    :param xmax: Max X axis bound
+    :param ymin: Min Y axis bound
+    :param ymax: Max Y axis bound
+    :param zmin: Min Z axis bound
+    :param zmax: Max Z axis bound
+    """
     faces = cube_faces(xmin, xmax, ymin, ymax, zmin, zmax)
     for grid in faces:
         x, y, z = grid
         mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
-def show_voxel_wlabels(vox_pts, vox_lbls, graph, vis_scale):
-    if vis_scale == 1:
-        point_size = 0.04#0.2
-        edge_size = 0.01
-    else:
-        point_size = 0.005
-        edge_size = 0.001
-    G = nx.convert_node_labels_to_integers(graph)
+def show_voxel(vox_pts, graph):
+    """
+    Display voxel containing graph (nodes, edges)
 
-    rgb = rgb_map[vox_lbls]
-    scalars = np.zeros((rgb.shape[0],))
-    for (kp_idx, kp_c) in enumerate(rgb):
-        scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
-    rgb_lut = create_8bit_rgb_lut()
-    pts = mlab.points3d(
-        vox_pts[:, 0],
-        vox_pts[:, 1],
-        vox_pts[:, 2],
-        scalars,
-        scale_factor=point_size,
-        scale_mode="none",
-        resolution=20)
-    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
-    tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
-    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
-
-    pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
-    pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
-    pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
-
-    pts.glyph.scale_mode = 'data_scaling_off'
-
-
-def show_voxel(vox_pts, graph, vis_scale):
-    if vis_scale == 1:
-        point_size = 0.1#0.2
-        edge_size = 0.02
-    else:
-        point_size = 0.005
-        edge_size = 0.001
+    :param vox_pts: point cloud array
+    :param graph: sparse adjacency matrix
+    :return:
+    """
+    point_size = 0.04#0.2
+    edge_size = 0.01
 
     G = nx.convert_node_labels_to_integers(graph)
     if vox_pts.shape[1] > 5:
         rgb = vox_pts[:, 3:]
-        # print(rgb[:5, :])
         scalars = np.zeros((rgb.shape[0],))
         for (kp_idx, kp_c) in enumerate(rgb):
             scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
@@ -158,6 +147,10 @@ def show_voxel(vox_pts, graph, vis_scale):
 
 
 class PC_Vis:
+    """
+    Visualization class using Open3D.
+    Side-by-side comparative visualization, and individual PC-XYZRGB visualization possible.
+    """
 
     @staticmethod
     def eval(pc, y_true, cfg, y_pred=None):
@@ -200,16 +193,22 @@ class PC_Vis:
 
 
     @staticmethod
-    def draw_pc(pc_xyzrgb):
+    def draw_pc(pc_xyzrgb, vis_test=False):
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(pc_xyzrgb[:, 0:3])
         if pc_xyzrgb.shape[1] == 3:
             return pc
+
         if np.max(pc_xyzrgb[:, 3:6]) > 20:  ## 0-255
             pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6] / 255.)
         else:
             pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6])
-        return pc
+
+        if vis_test:
+            o3d.visualization.draw_geometries([pc])
+            return None
+        else:
+            return pc
 
     @staticmethod
     def draw_pc_sem_ins(pc_xyz, pc_sem_ins, cfg):

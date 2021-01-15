@@ -11,6 +11,14 @@ def sample(points, thresh=1000):
     return points[np.random.choice(points.shape[0], thresh, replace=False), :]
 
 class voxelize:
+    """
+    Splits the total volume encompassed by the point cloud into smaller blocks, termed 'voxels' for simplicity.
+
+    Arguments:
+        pc_array: N-dimensional point cloud as a numpy.nd.array
+        div_factor: number of voxels to divide the entire volume into along the principal axis (x assumed)
+    """
+
     def __init__(self, pc_array, div_factor=20):
         self.pc = pc_array
         self.N = pc_array.shape[0]
@@ -66,10 +74,14 @@ class voxelize:
         # Initialize total point count, after sampling (see below)
         self.pcount = 0
 
-    def get_voxels(self, occ_thresh=5e-3):
+        self.get_voxels()
+
+    def get_voxels(self, nsearch_thresh=5):
         '''
         Get voxels occupied by an optimal number of points
-        :param occ_thresh: percentage of total point cloud size to consider as the lowest threshold for voxel occupancy
+        :param nsearch_thresh: threshold (based on the nearest neighbours param in graph computation) to
+                                check for voxel occupancy
+        :returns voxel_points: list of voxels and their corresponding points
         '''
         # Looping through each axis voxel range
         for i in range(len(self.vox_X)):
@@ -90,23 +102,17 @@ class voxelize:
                             # Get list of points of xy-populated point cloud within current voxel z bounds
                             xyz_occ = xy_occ[(voxel[4] < xy_occ[:, 2]) & (voxel[5] > xy_occ[:, 2])]
                             # check point population thresholding: greater than small input %, smaller than 20000 points
-                            if xyz_occ.shape[0] >= round(occ_thresh * self.N):
-                            # if round(occ_thresh * self.N) <= xyz_occ.shape[0] <= 5000:
+                            if xyz_occ.shape[0] > nsearch_thresh:
                                 # add points to list
                                 self.voxel_points.append(xyz_occ)
                                 # update total point count
                                 self.pcount += xyz_occ.shape[0]
                                 # add current voxel to array of occupied voxels
                                 self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
-                            # if point population greater than 20000 (optimal count)
-                            # elif xyz_occ.shape[0] > 5000:
-                            #     random sampling
-                                # downsampled = sample(xyz_occ, thresh=5000)
-                                # self.voxel_points.append(downsampled)
-                                # self.pcount += downsampled.shape[0]
-                                # self.occ_voxels = np.concatenate((self.occ_voxels, np.array([voxel])), axis=0)
         # delete empty row of occupied voxel array
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
+
+        return self.voxel_points
 
     def order_of_mag(self):
         '''
@@ -117,3 +123,44 @@ class voxelize:
         o = np.array([math.floor(math.log10(length)) for length in self.lengths]) >= 1
         if np.any(o):
             self.v_scaleup = 1
+
+
+if __name__ == '__main__':
+
+    from preproc_utils.readers import *
+    from preprocess import Preprocess
+    from preproc_utils.graph_gen import compute_adjacency, balltree_graph
+    import networkx as nx
+    from visualization import show_voxel
+    from mayavi import mlab
+
+    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+
+    model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='../config/semantic-kitti.yaml',
+                               train_cfg='../config/tr_config.yml')
+
+    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=False)
+
+    prep = Preprocess(model_cfg)
+
+    x, _, y = prep.assess_scan(train_files[0])
+
+    nn = 5
+
+    x = np.insert(x, 6, np.arange(start=0, stop=x.shape[0]), axis=1)
+    grid = voxelize(x)
+    grid.get_voxels(nsearch_thresh=5)
+    pts = grid.voxel_points
+
+    for id in range(len(pts)):
+
+        vox_pc = pts[id]
+        vox_ids = vox_pc[:, -1].astype('int')
+        vox_y = y[vox_ids]
+        vox_a = balltree_graph(vox_pc)
+
+        G = nx.from_scipy_sparse_matrix(vox_a)
+        # show_voxel_wlabels(vox_pc[:, :3], vox_y, G, vis_scale=0)
+        show_voxel(vox_pc[:, :3], G, 1)
+
+    mlab.show()

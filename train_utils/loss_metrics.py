@@ -1,13 +1,11 @@
-"""
-Lovasz-Softmax and Jaccard hinge loss in Tensorflow
-Maxim Berman 2018 ESAT-PSI KU Leuven (MIT License)
-"""
-
 from __future__ import print_function, division
-
 import tensorflow as tf
 import numpy as np
 
+""" Title: Lovasz-Softmax and Jaccard hinge loss in Tensorflow
+Author: Maxim Berman
+Date: 2018
+Availability: https://github.com/bermanmaxim/LovaszSoftmax """
 
 def lovasz_grad(gt_sorted):
     """
@@ -104,3 +102,40 @@ def flatten_probas(probas, labels, ignore=None, order='BHWC'):
     vprobas = tf.boolean_mask(probas, valid, name='valid_probas')
     vlabels = tf.boolean_mask(labels, valid, name='valid_labels')
     return vprobas, vlabels
+
+
+'''
+dice_cross_entropy() obtained (partially) from:
+https://lars76.github.io/2018/09/27/loss-functions-for-segmentation.html
+'''
+
+def dice_cross_entropy(y_true, predictions):
+
+    def dice_loss(y_true, y_pred):
+      y_pred = tf.math.sigmoid(y_pred)
+      numerator = 2 * tf.reduce_sum(y_true * y_pred)
+      denominator = tf.reduce_sum(y_true + y_pred)
+
+      return 1 - numerator / denominator
+
+    y_true = tf.cast(y_true, tf.float32)
+    o = tf.nn.sigmoid_cross_entropy_with_logits(y_true, predictions) + dice_loss(y_true, predictions)
+
+    return tf.reduce_mean(o)
+
+
+def one_hot_encoding(y_true, cfg):
+    '''
+    Does one-hot encoding on 1-dimensional sparse label array
+    :param y_true: 1-dimensional point-wise ground truth label array
+    :param cfg: model configuration dictionary
+    :return: 2D one-hot encoded label array
+    '''
+
+    N = y_true.shape[0]
+    one_hot = np.zeros((N, cfg['num_classes']))
+
+    for row in range(one_hot.shape[0]):
+        one_hot[row, y_true[row]] = 1
+
+    return one_hot

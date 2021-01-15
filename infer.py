@@ -1,4 +1,6 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+from time import time
 from pathlib import Path
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -12,42 +14,99 @@ from visualization import PC_Vis
 
 
 def test_all(val_files, loaded_model, cfg, prep_obj):
+    '''
+    Performs inference on all files provided as input, displays mean IoU averaged over all samples
+
+    :param val_files: list of scan files to perform evaluation on
+    :param loaded_model: loaded and serialized model
+    :param cfg: model config dict
+    :param prep_obj: preprocessor object
+    :return: None
+    '''
 
     overall_val_miou = 0.0
+    inf_times = []
     val_count = len(val_files)
+
+    class_ignore = cfg["class_ignore"]
+    test_miou = iouEval(len(class_ignore), class_ignore)
+
 
     for file in val_files:
 
-        curr_miou = test_single(file, loaded_model, cfg, prep_obj)
+        print('Processing: ', file)
+        start = time()
+        x, a, y = prep_obj.assess_scan(file)
+        a = sp_matrix_to_sp_tensor(a)
+        predictions = loaded_model.predict_step([x, a])
+        inf_times.append(time() - start)
+        pred_labels = np.argmax(predictions, axis=-1)
 
-        overall_val_miou += curr_miou
+        test_miou.addBatch(pred_labels, y)
+        te_miou, iou = test_miou.getIoU()
 
-    overall_val_miou = overall_val_miou/val_count
+        overall_val_miou += te_miou*100
 
-    print('mIoU, averaged across all validation samples: ', overall_val_miou)
+    overall_val_miou = overall_val_miou / val_count
+    avg_inf_time = np.mean(inf_times)
+
+    print('mIoU, averaged over all validation samples: ', overall_val_miou)
+    print('Average inference time in seconds: ', avg_inf_time)
 
 
+def map_iou(y_true, y_pred, cfg):
+    '''
+    Maps IoU for each class in prediction array to its corresponding 'valid' class in ground-truth
 
-def test_single(test_file, loaded_model, cfg, prep_obj, vis=False):
+    :param y_true: point-wise ground truth labels
+    :param y_pred: point-wise predicted labels
+    :param cfg: model config dict
+    :return: None
+    '''
+
+    class_ignore = cfg["class_ignore"]
+    test_miou = iouEval(len(class_ignore), class_ignore)
+
+    test_miou.addBatch(y_pred, y_true)
+    te_miou, iou = test_miou.getIoU()
+
+    iou_dict = dict(zip(range(0, cfg['num_classes']), (iou * 100)))
+
+    valid_y = np.unique(y_true)
+
+    print('-----------------------')
+    for i in valid_y:
+        label_list = list(cfg['labels'].keys())
+        curr_class = cfg['labels'][label_list[i]]
+
+        print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou_dict[i], 2)))
+
+    print('-----------------------')
+    print('Mean IoU: ', te_miou * 100)
+    print('-----------------------')
+
+
+def test_single(test_file, loaded_model, cfg, prep_obj, vis=False, iou_detail=True):
+    '''
+
+    :param test_file: scan file to perform inference on
+    :param loaded_model: loaded and serialized model
+    :param cfg: model config dict
+    :param prep_obj: preprocessor object
+    :param vis: boolean flag for comparative visualization (GT vs. Pred) using Open3D
+    :return:
+    '''
+
     x, a, y = prep_obj.assess_scan(test_file)
     a = sp_matrix_to_sp_tensor(a)
     predictions = loaded_model.predict_step([x, a])
     pred_labels = np.argmax(predictions, axis=-1)
 
-    # print(np.unique(y), np.unique(pred_labels))
-
-    class_ignore = cfg["class_ignore"]
-    test_miou = iouEval(len(class_ignore), class_ignore)
-
-    test_miou.addBatch(pred_labels, y)
-    te_miou, iou = test_miou.getIoU()
+    if iou_detail:
+        map_iou(y, pred_labels, cfg)
 
     if vis:
         PC_Vis.eval(pc=x, y_true=y, cfg=cfg, y_pred=pred_labels)
-    print('Mean IoU: ', te_miou * 100)
-    print('IoU: ', iou * 100)
-
-    return te_miou
 
 
 if __name__ == '__main__':
@@ -59,8 +118,7 @@ if __name__ == '__main__':
     cfg = get_cfg_params(base_dir=BASE_DIR)
 
     train_files, val_files, test_files = get_split_files(dataset_path=BASE_DIR, cfg=cfg)
-    test_file = random.choice(train_files[:200])
-    # test_file = val_files[0]
+    test_file = random.choice(val_files)
     print(test_file)
 
     prep = Preprocess(cfg)
@@ -78,11 +136,5 @@ if __name__ == '__main__':
         # load_status.assert_consumed()
         print(loaded_model)
 
-    test_single(test_file, loaded_model, cfg, prep, vis=True)
-    # test_all(val_files, loaded_model, cfg, prep)
-
-
-
-
-
-
+    # test_single(test_file, loaded_model, cfg, prep, vis=True)
+    test_all(val_files, loaded_model, cfg, prep)
