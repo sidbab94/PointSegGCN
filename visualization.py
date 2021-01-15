@@ -84,7 +84,7 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
         x, y, z = grid
         mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
-def show_voxel(vox_pts, graph):
+def show_voxel(vox_pts, graph, show_voxel=True):
     """
     Display voxel containing graph (nodes, edges)
 
@@ -94,8 +94,8 @@ def show_voxel(vox_pts, graph):
     """
     point_size = 0.04#0.2
     edge_size = 0.01
-
-    G = nx.convert_node_labels_to_integers(graph)
+    G = nx.from_scipy_sparse_matrix(graph)
+    G = nx.convert_node_labels_to_integers(G)
     if vox_pts.shape[1] > 5:
         rgb = vox_pts[:, 3:]
         scalars = np.zeros((rgb.shape[0],))
@@ -133,16 +133,17 @@ def show_voxel(vox_pts, graph):
 
     pts.glyph.scale_mode = 'data_scaling_off'
 
-    xmin = np.min(vox_pts[:, 0])
-    xmax = np.max(vox_pts[:, 0])
-    ymin = np.min(vox_pts[:, 1])
-    ymax = np.max(vox_pts[:, 1])
-    zmin = np.min(vox_pts[:, 2])
-    zmax = np.max(vox_pts[:, 2])
-    pad = np.array(((xmax-xmin) * 0.01, (ymax-ymin) * 0.01, (zmax-zmin) * 0.01))
-    mlab_plt_cube(xmin - pad[0], xmax + pad[0],
-                  ymin - pad[1], ymax + pad[1],
-                  zmin - pad[2], zmax - pad[2])
+    if show_voxel:
+        xmin = np.min(vox_pts[:, 0])
+        xmax = np.max(vox_pts[:, 0])
+        ymin = np.min(vox_pts[:, 1])
+        ymax = np.max(vox_pts[:, 1])
+        zmin = np.min(vox_pts[:, 2])
+        zmax = np.max(vox_pts[:, 2])
+        pad = np.array(((xmax-xmin) * 0.01, (ymax-ymin) * 0.01, (zmax-zmin) * 0.01))
+        mlab_plt_cube(xmin - pad[0], xmax + pad[0],
+                      ymin - pad[1], ymax + pad[1],
+                      zmin - pad[2], zmax - pad[2])
 
 
 
