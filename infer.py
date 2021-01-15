@@ -74,7 +74,8 @@ def map_iou(y_true, y_pred, cfg):
 
     valid_y = np.unique(y_true)
 
-    label_list = list(cfg['labels'].keys())
+    # label_list = list(cfg['labels'].keys())
+    label_list = list(cfg['learning_map_inv'].values())
 
     print('-----------------------')
     for i in range(cfg['num_classes']):
@@ -84,7 +85,7 @@ def map_iou(y_true, y_pred, cfg):
 
         print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou_dict[i], 2)))
 
-    print('\n ** Class present in Ground Truth')
+    print('\n *** Class present in Ground Truth ***')
 
     print('-----------------------')
     print('Mean IoU: ', te_miou * 100)
