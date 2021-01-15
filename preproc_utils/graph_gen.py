@@ -103,8 +103,14 @@ def compute_adjacency(points, nn=5, labels=None):
 
 if __name__ == '__main__':
     from preproc_utils.readers import read_bin_velodyne
+    from visualization import show_voxel
+    from mayavi import mlab
     import os
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 
     pc = os.path.join(BASE_DIR, '08', 'velodyne', '000000.bin')
     x = read_bin_velodyne(pc)
+
+    A = compute_adjacency(x)
+    show_voxel(x, A)
+    mlab.show()
