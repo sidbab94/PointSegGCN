@@ -1,6 +1,6 @@
 # GraphPC
 
-Multimodal Semantic Segmentation of Graph-based representations of LiDAR point clouds (from the  SemanticKITTI [dataset](http://www.semantic-kitti.org/dataset.html)), using Tensorflow and the Spektral API.
+Multimodal Semantic Segmentation of Graph-based representations of LiDAR point clouds (from the  SemanticKITTI [dataset](http://www.semantic-kitti.org/dataset.html)), using Tensorflow and the Spektral [API](https://graphneural.network/).
 
 # Table of Contents
 
