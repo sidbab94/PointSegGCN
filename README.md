@@ -31,6 +31,15 @@ A visualized example is shown below, from an example SemanticKITTI LiDAR scan:
 <img src="imgs/semkitti_graph.png">
 </p>
 
+Graphs however, cannot be processed by such traditional CNNs due to their irregular non-Euclidean structure (more abstract). However, T. N. Kipf and M. Welling (2017) proposed a graph-based counterpart to the CNN, termed Graph Convolutional Networks (GCN).
+A single GCN layer performs the following computation:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=X' = \sigma(D^{-1/2}AD^{-1/2}XW%2Bb)">
+</p>
+
+where A is the Adjacency Matrix, D the node degree matrix and X is the feature matrix. The proposed model tries to incorporate Graph Convolution layers in an architecture with skip connections.
+
 # Multimodal Approach
 
 A proven way to enhance network performance is to augment each datapoint's feature vector.This ensures that the model extracts more relevant information from the data to facilitate more accurate semantic labeling on test data. Additional information input to a network is called a *modality*. From the SemanticKITTI dataset, there exists two possible modalities associated with each scan: *geometric data* (point cloud XYZ coordinates) and *colour data* (RGB information present in images captured). In this git, a multimodal approach to semantic segmentation is implemented by fusing the LiDAR geometric data with RGB information. This is achieved by running:
