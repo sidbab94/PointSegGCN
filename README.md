@@ -41,6 +41,7 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 <p align="center">
 <img src="imgs/FV_velo_rgb.PNG">
 </p>
+
 # Current Progress
 
 | Date | Network | mIoU | Avg. Inference Time (s)
