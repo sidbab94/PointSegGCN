@@ -48,7 +48,7 @@ def gcn_block(filters, do=False):
 
     return result
 
-def res_model_1(model_cfg):
+def Res_GCN_v1(model_cfg):
 
     l2_reg = model_cfg['l2_reg']
     F = model_cfg['n_node_features']

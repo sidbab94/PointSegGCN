@@ -9,7 +9,7 @@ from tensorflow.keras.losses import SparseCategoricalCrossentropy as loss_cross_
 
 from train_utils.loss_metrics import lovasz_softmax_flat, dice_cross_entropy, one_hot_encoding
 from train_utils.eval_metrics import iouEval
-from model import res_model_1 as network
+from model import Res_GCN_v1 as network
 
 from preprocess import *
 from preproc_utils.readers import get_cfg_params
