@@ -40,7 +40,7 @@ A proven way to enhance network performance is to augment each datapoint's featu
 This invokes the ```SensorFusion()``` class, where the camera calibration parameters are obtained and used to compute a velodyne-to-camera projection matrix, and subsequently perform a mapping of the LiDAR points within the Camera FOV to their respective RGB values. An example of such an 'augmented' point cloud is shown below: 
 
 <p align="center">
-<img src="imgs/FV_velo_rgb.png">
+<img src="imgs/FV_velo_rgb.PNG">
 </p>
 
 # Current Progress
