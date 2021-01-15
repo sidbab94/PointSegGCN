@@ -141,6 +141,7 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                'te_seq': list(seq_list[split_params['test']]),
                'class_ignore': semkitti_cfg["learning_ignore"],
                'learning_map': semkitti_cfg["learning_map"],
+               'learning_map_inv': semkitti_cfg["learning_map_inv"],
                'color_map': np.array(list(semkitti_cfg['color_map'].values()))/255,
                'labels': semkitti_cfg["labels"]}
 
