@@ -21,7 +21,7 @@ A Graph is data represented in the form
 </p>
 
 where V and E are the vertices (the datapoints themselves) and the edges (the quantized relations between the datapoints) respectively.
-A graph is numerically represented by an *adjacency matrix*, whose rows and columns correspond to the total number of nodes/vertices present in the data, appropriately filled with values wherever edges are present between nodes. In this git, each sample point cloud is represented by a graph whose nodes are the points (node features being XYZ coordinates and possibly associated RGB values). The edge values are computed by running a KD-tree Nearest Neighbour search algorithm. This is achieved by running:
+A graph is numerically represented by an *adjacency matrix*, whose rows and columns correspond to the total number of nodes/vertices present in the data, appropriately filled with values wherever edges are present between nodes. In this git, each sample point cloud is represented by a graph whose nodes are the points (node features being XYZ coordinates and possibly associated RGB values). The edge values are computed by running a KD-tree Nearest Neighbour search algorithm. This can be demonstrated by running:
 
 ``` cd preproc_utils ``` and then ```python graph_gen.py```
 
@@ -42,7 +42,7 @@ where A is the Adjacency Matrix, D the node degree matrix and X is the feature m
 
 # Multimodal Approach
 
-A proven way to enhance network performance is to augment each datapoint's feature vector.This ensures that the model extracts more relevant information from the data to facilitate more accurate semantic labeling on test data. Additional information input to a network is called a *modality*. From the SemanticKITTI dataset, there exists two possible modalities associated with each scan: *geometric data* (point cloud XYZ coordinates) and *colour data* (RGB information present in images captured). In this git, a multimodal approach to semantic segmentation is implemented by fusing the LiDAR geometric data with RGB information. This is achieved by running:
+A proven way to enhance network performance is to augment each datapoint's feature vector.This ensures that the model extracts more relevant information from the data to facilitate more accurate semantic labeling on test data. Additional information input to a network is called a *modality*. From the SemanticKITTI dataset, there exists two possible modalities associated with each scan: *geometric data* (point cloud XYZ coordinates) and *colour data* (RGB information present in images captured). In this git, a multimodal approach to semantic segmentation is implemented by fusing the LiDAR geometric data with RGB information. This can be demonstrated by running:
 
 ``` cd preproc_utils ``` and then ```python sensor_fusion.py```
 
