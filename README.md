@@ -11,7 +11,7 @@ Semantic Segmentation of Graph-based representations of LiDAR point clouds (from
 
 # In a Nutshell
 
-Semantic segmentation of point clouds aims to assign a category label to each point. In order to implement any sort of network architecture that is purposed to do so, it must take into account, above all, the unordered nature of point clouds. Due to the lack of order in 3D points, a point cloud with N 3D points has a total of N! possible permutations in the data feeding order. Hence, it is important for a network to maintain invariance of all possible permutations. Since Graphs are deemed useful to efficiently represent non-Euclidean data, they draws parallels with the way point clouds could be represented. Hence, it only makes intuitive sense to design and implement a neural network architecture that centers around large-scale point clouds reimagined as graphs.
+Semantic segmentation of point clouds aims to assign a category label to each point. Due to the lack of order in 3D points, a point cloud with N 3D points has a total of N! possible permutations in the data feeding order. Hence, it is important for a network to maintain invariance of all possible permutations. Since Graphs are deemed useful to efficiently represent non-Euclidean data, they draws parallels with the way point clouds could be represented. The approach in this git proposes a way to not only perform learning on graph-structured representations of LiDAR point clouds, but also integrates a novel pre-processing pipeline which facilitates the implementation of a *multimodal* segmentation architecture. 
 
 # A bit about Graphs
 
