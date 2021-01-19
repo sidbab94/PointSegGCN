@@ -3,10 +3,10 @@ import tensorflow as tf
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Add, UpSampling1D, Lambda, Concatenate
+from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Add, Concatenate, Lambda, UpSampling1D
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
-from spektral.layers import GCNConv, GlobalMaxPool, ChebConv, MinCutPool, GCSConv
+from spektral.layers import GCNConv, GlobalMaxPool, ChebConv, MinCutPool, GCSConv, TopKPool
 from train_utils.tf_utils import unPool
 
 
@@ -82,6 +82,33 @@ def Res_GCN_v1(model_cfg):
 
     model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v2')
     return model
+
+def gcs_block(parents, filters, dropout=False, l2_reg=0.01):
+    X_in, A_in = parents
+    x = GCSConv(filters, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    x = BatchNormalization()(x)
+    if dropout:
+        x = Dropout(0.1)(x)
+    return x
+
+def Res_GCN_v2(model_cfg):
+
+    l2_reg = model_cfg['l2_reg']
+    F = model_cfg['n_node_features']
+    num_classes = model_cfg['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+
+    X_1 = gcs_block((X_in, A_in), 16, True, l2_reg)
+    X_2= gcs_block((X_1, A_in), 32, True, l2_reg)
+    X_3 = gcs_block((X_2, A_in), 64, True, l2_reg)
+
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([X_3, A_in])
+
+    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v2')
+    return model
+
 
 
 def res_model_2(tr_params):
@@ -315,3 +342,41 @@ class Graph_U(Model):
             x = Dropout(0.1)(x)
 
         return x
+
+
+# def gcs_block(parents, filters, dropout=False, l2_reg=0.01):
+#     X_in, A_in = parents
+#     x = GCSConv(filters, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+#     x = BatchNormalization()(x)
+#     if dropout:
+#         x = Dropout(0.1)(x)
+#     return x
+#
+# def Res_GCN_v2(model_cfg):
+#
+#     l2_reg = model_cfg['l2_reg']
+#     F = model_cfg['n_node_features']
+#     num_classes = model_cfg['num_classes']
+#
+#     X_in = Input(shape=(F,), name="X_in")
+#     A_in = Input(shape=(None,), sparse=True)
+#     I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+#
+#     X_1 = gcs_block((X_in, A_in), 32, dropout=True)
+#     X_1, A_1, I_1 = TopKPool(ratio=0.5)([X_1, A_in, I_in])
+#
+#     X_2 = gcs_block((X_1, A_1), 32, dropout=True)
+#     X_2, A_2, I_2 = TopKPool(ratio=0.5)([X_2, A_1, I_1])
+#
+#     X_3 = gcs_block((X_2, A_2), 32, dropout=True)
+#     X_3 = UpSampling1D()([[tf.expand_dims(X_3, 0)]])
+#     A_3 = UpSampling1D()([A_2])
+#
+#     X_4 = gcs_block((X_3, A_3), 32, dropout=True)
+#     X_4 = UpSampling1D()([X_4])
+#     A_4 = UpSampling1D()([A_3])
+#
+#     output = GCSConv(num_classes, activation="softmax")([X_4, A_4])
+#
+#     model = Model(inputs=[X_in, A_in, I_in], outputs=output)
+#     return model
