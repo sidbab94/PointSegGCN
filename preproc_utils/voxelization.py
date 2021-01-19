@@ -112,8 +112,6 @@ class voxelize:
         # delete empty row of occupied voxel array
         self.occ_voxels = np.delete(self.occ_voxels, 0, 0)
 
-        return self.voxel_points
-
     def order_of_mag(self):
         '''
         Determine graph visualization setting boolean flag
