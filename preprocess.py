@@ -93,13 +93,13 @@ class Preprocess:
         :return: pc_rgb, A, labels_rgb
         '''
 
-        self.pc_rgb = self.vox_pc_map[vox_id]
-        vox_pts_ids = self.pc_rgb[:, -1].astype('int')
-        self.labels_rgb = self.labels_rgb[vox_pts_ids]
+        vox_pc = self.vox_pc_map[vox_id]
+        vox_pts_ids = vox_pc[:, -1].astype('int')
+        vox_y = self.labels_rgb[vox_pts_ids]
+        vox_a = compute_graph(vox_pc)
+        vox_a = GCNConv.preprocess(vox_a)
 
-        self.get_graph()
-
-        return self.pc_rgb, self.A, self.labels_rgb
+        return vox_pc, vox_a, vox_y
 
     def voxelize_scan(self):
         '''
@@ -108,7 +108,7 @@ class Preprocess:
 
         pc_w_ids = np.insert(self.pc_rgb, self.pc_rgb.shape[1],
                              np.arange(start=0, stop=self.pc_rgb.shape[0]), axis=1)
-        self.vox_pc_map = voxelize(pc_w_ids)
+        self.vox_pc_map = voxelize(pc_w_ids).voxel_points
 
 
 class BatchData(Dataset):
@@ -121,11 +121,12 @@ class BatchData(Dataset):
         prep_obj: preprocessor object
     """
 
-    def __init__(self, file_list, prep_obj, verbose=False):
+    def __init__(self, file_list, prep_obj, verbose=False, vox=False):
 
         self.file_list = file_list
         self.prep = prep_obj
         self.vv = verbose
+        self.vox = vox
         super().__init__()
 
     def read(self):
@@ -136,18 +137,27 @@ class BatchData(Dataset):
             if self.vv:
                 print('     Processing : ', file)
 
-            x, a, y = self.prep.assess_scan(file)
+            if self.vox:
+                self.prep.assess_scan(file)
+                self.prep.voxelize_scan()
+                for id in range(len(self.prep.vox_pc_map)):
+                    x, a, y = self.prep.assess_voxel(id)
+                    if a is None:
+                        print('Numpy Memory Error, skipping current scan: ', file)
+                        continue
+                    output.append(Graph(x=x, a=a, y=y))
 
-            if a is None:
-                print('Numpy Memory Error, skipping current scan: ', file)
-                continue
-
-            output.append(Graph(x=x, a=a, y=y))
+            else:
+                x, a, y = self.prep.assess_scan(file)
+                if a is None:
+                    print('Numpy Memory Error, skipping current scan: ', file)
+                    continue
+                output.append(Graph(x=x, a=a, y=y))
 
         return output
 
 
-def prep_dataset(file_list, prep_obj, verbose=False):
+def prep_dataset(file_list, prep_obj, verbose=False, vox=False):
     '''
     Run BatchData pipeline on list of scan files
     :param file_list: list of velodyne scan paths to process
@@ -156,12 +166,12 @@ def prep_dataset(file_list, prep_obj, verbose=False):
     :return: Spektral dataset
     '''
 
-    dataset = BatchData(file_list, prep_obj, verbose)
+    dataset = BatchData(file_list, prep_obj, verbose, vox)
 
     return dataset
 
 
-def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=False):
+def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=False, vox=False):
     '''
     Get file list, then run BatchData pipeline to obtain training and validation datasets
     :param dataset_path: dataset base directory path
@@ -175,8 +185,8 @@ def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=Fals
     train_files, val_files, _ = get_split_files(dataset_path=dataset_path, cfg=model_cfg,
                                                 count=file_count, shuffle=True)
 
-    tr_dataset = BatchData(train_files, prep_obj, verbose)
-    va_dataset = BatchData(val_files, prep_obj, verbose)
+    tr_dataset = BatchData(train_files, prep_obj, verbose, vox)
+    va_dataset = BatchData(val_files, prep_obj, verbose, vox)
 
     return tr_dataset, va_dataset
 
