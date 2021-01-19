@@ -91,7 +91,6 @@ def map_iou(y_true, y_pred, cfg):
     print('Mean IoU: ', te_miou * 100)
     print('-----------------------')
 
-
 def test_single(test_file, loaded_model, cfg, prep_obj, vis=False, iou_detail=True):
     '''
 
