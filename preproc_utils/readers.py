@@ -3,6 +3,7 @@ from os.path import join
 import numpy as np
 import struct
 from yaml import safe_load
+from sklearn.preprocessing import minmax_scale
 
 
 def read_bin_velodyne(pc_path):
@@ -127,7 +128,7 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
 
     seq_list = np.sort(listdir(base_dir))
 
-    tr_dict = {'ep': tr_params['epochs'],
+    model_dict = {'ep': tr_params['epochs'],
                'num_classes': tr_params['num_classes'],
                'patience': tr_params['es_patience'],
                'batch_size': tr_params['batch_size'],
@@ -142,7 +143,19 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                'class_ignore': semkitti_cfg["learning_ignore"],
                'learning_map': semkitti_cfg["learning_map"],
                'learning_map_inv': semkitti_cfg["learning_map_inv"],
+               'content': semkitti_cfg["content"],
                'color_map': np.array(list(semkitti_cfg['color_map'].values()))/255,
                'labels': semkitti_cfg["labels"]}
 
-    return tr_dict
+    return model_dict
+
+
+def map_content(model_cfg):
+    pc_content = model_cfg['content']
+    l_map = model_cfg['learning_map_inv']
+
+    mapped_content = np.array([pc_content[i] for i in l_map.values()])
+
+    class_weights = minmax_scale(mapped_content)
+
+    return class_weights
