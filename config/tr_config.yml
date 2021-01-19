@@ -8,4 +8,4 @@ training_params:
   l2_reg: 0.001
   es_patience: 20
   n_node_features: 6
-  lovasz_switch_ratio: 0.4
+  lovasz_switch_ratio: 1.4
