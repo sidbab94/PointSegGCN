@@ -5,14 +5,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
-from tensorflow.keras.losses import SparseCategoricalCrossentropy as loss_cross_entropy
+from tensorflow.keras.losses import SparseCategoricalCrossentropy
 
-from train_utils.loss_metrics import lovasz_softmax_flat, dice_cross_entropy, one_hot_encoding
+from train_utils import loss_metrics
 from train_utils.eval_metrics import iouEval
 from model import Res_GCN_v1 as network
 
 from preprocess import *
-from preproc_utils.readers import get_cfg_params
+np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
 
 
@@ -23,9 +23,11 @@ def assign_loss_func(name):
     :return: loss function object
     '''
 
-    loss_dict = {'cross_entropy': loss_cross_entropy,
-                 'lovasz': lovasz_softmax_flat,
-                 'dice_loss': dice_cross_entropy}
+    loss_dict = {'cross_entropy': SparseCategoricalCrossentropy,
+                 'lovasz': loss_metrics.lovasz_softmax_flat,
+                 'dice_loss': loss_metrics.dice_loss,
+                 'dice_xentropy': loss_metrics.dice_cross_entropy,
+                 'focal_tv': loss_metrics.sigmoid_focal_xentropy}
 
     return loss_dict.get(str(name))
 
@@ -60,12 +62,15 @@ def train_step(inputs, target, model, cfg, loss_fn='dice_loss'):
     :return: training Loss and mIoU metrics
     '''
 
-    X, A, _, = inputs
+    X, A, I, = inputs
     Y = np.concatenate(target).ravel()
 
-    if loss_fn == 'dice_loss':
+    # experimental class imbalancing solution
+    class_weights = map_content(cfg)
+
+    if (loss_fn == 'dice_loss') or (loss_fn == 'dice_xentropy'):
         # convert 1D label array to one-hot encoded 2D array for dice loss computation
-        y_true = one_hot_encoding(Y, cfg)
+        y_true = loss_metrics.one_hot_encoding(Y)
     else:
         y_true = Y
 
@@ -76,6 +81,7 @@ def train_step(inputs, target, model, cfg, loss_fn='dice_loss'):
         tr_loss = loss_obj(y_true, predictions)
 
     gradients = tape.gradient(tr_loss, model.trainable_variables)
+
     opt.apply_gradients(zip(gradients, model.trainable_variables))
 
     pred_labels = np.argmax(predictions, axis=-1)
@@ -98,6 +104,9 @@ def evaluate(loader, model, cfg, loss_fn='dice_loss'):
     va_output = []
     step = 0
 
+    # experimental class imbalancing solution
+    class_weights = map_content(cfg)
+
     loss_obj = assign_loss_func(loss_fn)
 
     while step < loader.steps_per_epoch:
@@ -105,11 +114,11 @@ def evaluate(loader, model, cfg, loss_fn='dice_loss'):
         step += 1
 
         inputs, target = loader.__next__()
-        X, A, _ = inputs
+        X, A, I = inputs
         Y = np.concatenate(target).ravel()
 
-        if loss_fn == 'dice_loss':
-            y_true = one_hot_encoding(Y, cfg)
+        if (loss_fn == 'dice_loss') or (loss_fn == 'dice_xentropy'):
+            y_true = loss_metrics.one_hot_encoding(Y)
             if y_true.ndim < 2:
                 print('One-hot encoding failed to meet dimensionality requirements.'
                       'Continuing to next epoch.')
@@ -118,10 +127,9 @@ def evaluate(loader, model, cfg, loss_fn='dice_loss'):
             y_true = Y
 
         predictions = model([X, A], training=False)
-
-        va_loss = loss_obj(y_true, predictions)
-
         pred_labels = np.argmax(predictions, axis=-1)
+
+        va_loss = loss_obj(y_true, predictions, class_weights=class_weights)
 
         val_miou.addBatch(pred_labels, Y)
         va_miou, _ = val_miou.getIoU()
@@ -134,7 +142,7 @@ def evaluate(loader, model, cfg, loss_fn='dice_loss'):
     return outs_arr[0], outs_arr[1]
 
 
-def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg, block_len=2000, verbose=False):
+def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg, block_len=2000, verbose=False, vox=False):
     '''
     Updates training dataset loader with modified file-list
     :param train_files: list of 'train' scan file paths
@@ -158,7 +166,7 @@ def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg, block_len=2
               .format(block_len, epoch, model_cfg['ep']))
 
     if len(tr_files_upd) != 0:
-        tr_ds = prep_dataset(tr_files_upd, prep_obj, verbose=False)
+        tr_ds = prep_dataset(tr_files_upd, prep_obj, verbose=False, vox=vox)
         tr_loader = prep_loader(tr_ds, model_cfg)
         return tr_loader
     else:
@@ -167,7 +175,7 @@ def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg, block_len=2
         return None
 
 
-def configure_loaders(train_files, val_files, prep_obj):
+def configure_loaders(train_files, val_files, prep_obj, vox=False):
     '''
     Configures training and validation Spektral data loaders
     :param train_files: list of 'train' scan file paths
@@ -176,16 +184,16 @@ def configure_loaders(train_files, val_files, prep_obj):
     :return: training and validation Spektral data loaders
     '''
 
-    tr_ds = prep_dataset(train_files, prep_obj, verbose=True)
+    tr_ds = prep_dataset(train_files, prep_obj, verbose=True, vox=vox)
     tr_loader = prep_loader(tr_ds, model_cfg)
 
-    va_ds = prep_dataset(val_files, prep_obj, verbose=True)
+    va_ds = prep_dataset(val_files, prep_obj, verbose=True, vox=vox)
     va_loader = prep_loader(va_ds, model_cfg)
 
     return tr_loader, va_loader
 
 
-def train_loop(prep, model_cfg, save_weights=True, dynamic_load=True):
+def train_loop(prep, model_cfg, save_weights=True, dynamic_load=True, vox=False):
     '''
     Umbrella training loop --> Prepares data-loaders and performs batch-wise training.
     Model weights are saved every time best validation mIoU is achieved.
@@ -205,7 +213,7 @@ def train_loop(prep, model_cfg, save_weights=True, dynamic_load=True):
     # epoch at which to switch to lovàsz loss
     loss_switch_ep = model_cfg['loss_switch_ep']
     # Default loss function
-    loss_func = 'dice_loss'
+    loss_func = 'dice_xentropy'
 
     if dynamic_load:
 
@@ -218,17 +226,17 @@ def train_loop(prep, model_cfg, save_weights=True, dynamic_load=True):
         val_files = val_files[:200]
 
         # Training data loader initialized
-        tr_loader = update_loader(train_files, prep, dyn_idx, epoch, model_cfg, block_len=dyn_count*10)
+        tr_loader = update_loader(train_files, prep, dyn_idx, epoch, model_cfg, block_len=dyn_count*10, vox=vox)
 
         print('     Preparing validation data loader..')
-        va_ds = prep_dataset(val_files, prep, verbose=True)
+        va_ds = prep_dataset(val_files, prep, verbose=True, vox=vox)
         va_loader = prep_loader(va_ds, model_cfg)
 
     else:
 
         train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
 
-        tr_loader, va_loader = configure_loaders(train_files, val_files, prep)
+        tr_loader, va_loader = configure_loaders(train_files, val_files, prep, vox=vox)
 
 
     for batch in tr_loader:
@@ -295,7 +303,7 @@ def train_loop(prep, model_cfg, save_weights=True, dynamic_load=True):
             # Training loader updated every 20 epochs
             if (int(epoch) % 20 == 0) and dynamic_load:
                 dyn_idx += 1
-                tr_loader = update_loader(train_files, prep, dyn_idx, epoch, model_cfg, verbose=True)
+                tr_loader = update_loader(train_files, prep, dyn_idx, epoch, model_cfg, verbose=True, vox=vox)
                 if tr_loader is None:
                     break
 
@@ -341,12 +349,12 @@ if __name__ == '__main__':
     print('     TRAINING START...')
     print('----------------------------------------------------------------------------------')
 
-    train_loop(prep, model_cfg)
+    train_loop(prep, model_cfg, dynamic_load=True, vox=False)
 
     print('----------------------------------------------------------------------------------')
     print('     TRAINING END...')
 
-    save_path = 'models/infer_v3_4_res_rgb_1000_bs16_dice'
+    save_path = 'models/infer_v3_5_gcs_rgb_2000_bs16_dice'
     model.save(save_path)
     print('     Model saved to {}'.format(save_path))
     print('==================================================================================')
