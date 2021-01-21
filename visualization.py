@@ -84,28 +84,29 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
         x, y, z = grid
         mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
-def show_voxel(vox_pts, graph, show_voxel=True):
+def show_graph(pc, graph, show_voxel=True):
     """
     Display voxel containing graph (nodes, edges)
 
-    :param vox_pts: point cloud array
+    :param pc: point cloud array
     :param graph: sparse adjacency matrix
     :return:
     """
     point_size = 0.04#0.2
     edge_size = 0.01
-    G = nx.from_scipy_sparse_matrix(graph)
+    # G = nx.from_scipy_sparse_matrix(graph)
+    G = nx.from_numpy_array(graph)
     G = nx.convert_node_labels_to_integers(G)
-    if vox_pts.shape[1] > 5:
-        rgb = vox_pts[:, 3:]
+    if pc.shape[1] > 5:
+        rgb = pc[:, 3:]
         scalars = np.zeros((rgb.shape[0],))
         for (kp_idx, kp_c) in enumerate(rgb):
             scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
         rgb_lut = create_8bit_rgb_lut()
         pts = mlab.points3d(
-            vox_pts[:, 0],
-            vox_pts[:, 1],
-            vox_pts[:, 2],
+            pc[:, 0],
+            pc[:, 1],
+            pc[:, 2],
             scalars,
             scale_factor=point_size,
             scale_mode="none",
@@ -113,9 +114,9 @@ def show_voxel(vox_pts, graph, show_voxel=True):
     else:
         scalars = np.array(list(G.nodes())) + 5
         pts = mlab.points3d(
-            vox_pts[:, 0],
-            vox_pts[:, 1],
-            vox_pts[:, 2],
+            pc[:, 0],
+            pc[:, 1],
+            pc[:, 2],
             scalars,
             scale_factor=point_size,
             scale_mode="none",
@@ -126,7 +127,7 @@ def show_voxel(vox_pts, graph, show_voxel=True):
     tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
     mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
 
-    if vox_pts.shape[1] > 6:
+    if pc.shape[1] > 6:
         pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
         pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
         pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
@@ -134,16 +135,17 @@ def show_voxel(vox_pts, graph, show_voxel=True):
     pts.glyph.scale_mode = 'data_scaling_off'
 
     if show_voxel:
-        xmin = np.min(vox_pts[:, 0])
-        xmax = np.max(vox_pts[:, 0])
-        ymin = np.min(vox_pts[:, 1])
-        ymax = np.max(vox_pts[:, 1])
-        zmin = np.min(vox_pts[:, 2])
-        zmax = np.max(vox_pts[:, 2])
+        xmin = np.min(pc[:, 0])
+        xmax = np.max(pc[:, 0])
+        ymin = np.min(pc[:, 1])
+        ymax = np.max(pc[:, 1])
+        zmin = np.min(pc[:, 2])
+        zmax = np.max(pc[:, 2])
         pad = np.array(((xmax-xmin) * 0.01, (ymax-ymin) * 0.01, (zmax-zmin) * 0.01))
         mlab_plt_cube(xmin - pad[0], xmax + pad[0],
                       ymin - pad[1], ymax + pad[1],
                       zmin - pad[2], zmax - pad[2])
+    mlab.show()
 
 
 
@@ -197,8 +199,6 @@ class PC_Vis:
     def draw_pc(pc_xyzrgb, vis_test=False):
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(pc_xyzrgb[:, 0:3])
-        if pc_xyzrgb.shape[1] == 3:
-            return pc
 
         if np.max(pc_xyzrgb[:, 3:6]) > 20:  ## 0-255
             pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6] / 255.)
@@ -212,7 +212,7 @@ class PC_Vis:
             return pc
 
     @staticmethod
-    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, cfg):
+    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, cfg, vis_test=False):
 
         ins_colors = cfg['color_map']
 
@@ -242,6 +242,9 @@ class PC_Vis:
 
         Y_semins = np.concatenate([pc_xyz[:, 0:3], Y_colors], axis=-1)
 
+        if vis_test:
+            PC_Vis.draw_pc(Y_semins, True)
+
         return Y_semins
 
 
@@ -254,4 +257,4 @@ if __name__ == '__main__':
     pc = os.path.join(BASE_DIR, '08', 'velodyne', '000000.bin')
     x = read_bin_velodyne(pc)
     y = get_labels(os.path.join(BASE_DIR, '08', 'labels', '000000.label'))
-    ShowPC.draw_pc_sem_ins(x, y)
+    PC_Vis.draw_pc_sem_ins(x, y)
