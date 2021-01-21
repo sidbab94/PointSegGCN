@@ -1,10 +1,12 @@
+import tensorflow as tf
 import cv2
 from spektral.layers import GCNConv
 from spektral.data import Dataset, Graph, DisjointLoader
+from spektral.layers.ops import sp_matrix_to_sp_tensor
 
 from preproc_utils.readers import *
 from preproc_utils.sensor_fusion import SensorFusion
-from preproc_utils.graph_gen import sklearn_graph as compute_graph
+from preproc_utils.graph_gen import compute_adjacency as compute_graph
 from preproc_utils.voxelization import voxelize
 
 
@@ -121,12 +123,14 @@ class BatchData(Dataset):
         prep_obj: preprocessor object
     """
 
-    def __init__(self, file_list, prep_obj, verbose=False, vox=False):
+    def __init__(self, file_list, prep_obj, model_cfg, verbose=False, vox=False, sampling=False):
 
         self.file_list = file_list
         self.prep = prep_obj
         self.vv = verbose
         self.vox = vox
+        self.ss = sampling
+        self.ss_ratio = 20#model_cfg['batch_size']
         super().__init__()
 
     def read(self):
@@ -147,6 +151,15 @@ class BatchData(Dataset):
                         continue
                     output.append(Graph(x=x, a=a, y=y))
 
+            elif self.ss:
+                print('     Down-sampling : ', file)
+                X, A, Y = self.prep.assess_scan(file)
+                slice_gen = gen_sample_indices(X, self.ss_ratio)
+                for i in range(self.ss_ratio):
+                    indices = next(slice_gen)
+                    x, a, y = slice_scan_attr((X, A, Y), indices)
+                    output.append(Graph(x=x, a=a, y=y))
+
             else:
                 x, a, y = self.prep.assess_scan(file)
                 if a is None:
@@ -157,7 +170,7 @@ class BatchData(Dataset):
         return output
 
 
-def prep_dataset(file_list, prep_obj, verbose=False, vox=False):
+def prep_dataset(file_list, prep_obj, model_cfg, verbose=False, vox=False, downsampling=False):
     '''
     Run BatchData pipeline on list of scan files
     :param file_list: list of velodyne scan paths to process
@@ -166,12 +179,12 @@ def prep_dataset(file_list, prep_obj, verbose=False, vox=False):
     :return: Spektral dataset
     '''
 
-    dataset = BatchData(file_list, prep_obj, verbose, vox)
+    dataset = BatchData(file_list, prep_obj, model_cfg, verbose, vox, downsampling)
 
     return dataset
 
 
-def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=False, vox=False):
+def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=False, vox=False, downsampling=False):
     '''
     Get file list, then run BatchData pipeline to obtain training and validation datasets
     :param dataset_path: dataset base directory path
@@ -185,8 +198,8 @@ def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=Fals
     train_files, val_files, _ = get_split_files(dataset_path=dataset_path, cfg=model_cfg,
                                                 count=file_count, shuffle=True)
 
-    tr_dataset = BatchData(train_files, prep_obj, verbose, vox)
-    va_dataset = BatchData(val_files, prep_obj, verbose, vox)
+    tr_dataset = BatchData(train_files, prep_obj, model_cfg, verbose, vox, downsampling)
+    va_dataset = BatchData(val_files, prep_obj, model_cfg, verbose, vox, downsampling)
 
     return tr_dataset, va_dataset
 
@@ -205,7 +218,49 @@ def prep_loader(dataset, model_cfg):
     batch_size = model_cfg['batch_size']
     epochs = model_cfg['ep']
 
-    return DisjointLoader(dataset, batch_size=batch_size, epochs=epochs)
+    return DisjointLoader(dataset, batch_size=batch_size, epochs=epochs, shuffle=False)
+
+
+def slice_scan_attr(inputs, sampled_ind):
+
+    x, a, y = inputs
+
+    x = x[sampled_ind, :]
+    a = a[sampled_ind][:, sampled_ind]
+    y = y[sampled_ind]
+
+    return x, a, y
+
+
+def gen_sample_indices(x, ss_ratio=10):
+
+    # initialize random generator w/ seed
+    rng = np.random.default_rng(seed=123)
+
+    N = x.shape[0]
+
+    # sample size (floored)
+    valid_ss = N // ss_ratio
+    # final sample size with surplus
+    rem_ss = N - (valid_ss * ss_ratio)
+    # point indices of original point cloud
+    glo_ind = np.arange(N)
+
+    stop = 1
+    while stop <= ss_ratio:
+
+        if stop == ss_ratio:
+            valid_ss += rem_ss
+
+        curr_ind = rng.choice(glo_ind, valid_ss, replace=False)
+        # prune point indices wrt indices already sampled --> mutual exclusion of samples
+        del_ind = np.nonzero(np.isin(glo_ind, curr_ind))
+        glo_ind = np.delete(glo_ind, del_ind)
+        stop += 1
+
+        yield curr_ind
+
+
 
 
 if __name__ == '__main__':

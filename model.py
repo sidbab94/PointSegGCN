@@ -201,14 +201,14 @@ class Res_U(Model):
         self.F = tr_params['n_node_features']
         self.num_classes = tr_params['num_classes']
 
-        self.num_levels = 2
+        self.num_levels = 4
         self.gc = [None for i in range(2 * (self.num_levels + 1))]
         self.adj = [None for i in range(2 * (self.num_levels + 1))]
         self.x_pool = [None for i in range(self.num_levels + 1)]
         self.a_pool = [None for i in range(self.num_levels + 1)]
         self.upsamp = [None for i in range(self.num_levels + 1)]
 
-        self.gcn_in = GCNConv(64, activation='relu', kernel_regularizer=l2(self.l2_reg))
+        self.gcn_in = GCNConv(32, activation='relu', kernel_regularizer=l2(self.l2_reg))
 
     def call(self, inputs):
 
@@ -242,7 +242,7 @@ class Res_U(Model):
                                         padding='SAME', strides=[2])
             # self.a_pool[i] = tf.squeeze(self.a_pool[i], axis=0)
 
-            self.gc[i + 1] = GCNConv(64, activation='relu', kernel_regularizer=l2(self.l2_reg),
+            self.gc[i + 1] = GCNConv(32, activation='relu', kernel_regularizer=l2(self.l2_reg),
                                       name='gcn_%d' % (i + 2))([self.x_pool[i], self.a_pool[i]])
 
         self.x_pool[self.num_levels] = tf.reduce_max(self.x_pool[self.num_levels - 1], axis=[1])
@@ -254,7 +254,7 @@ class Res_U(Model):
                                   axis=1)
         for i in range(self.num_levels):
             j = self.num_levels + 1 + i
-            self.gc[j] = GCNConv(64, 2, activation='relu', kernel_regularizer=l2(self.l2_reg),
+            self.gc[j] = GCNConv(32, 2, activation='relu', kernel_regularizer=l2(self.l2_reg),
                                   name='gcn_%d' % (j + 1))([tf.concat([self.gc[self.num_levels - i],
                                                                        self.upsamp[i]], axis=2), self.A_in])
             self.upsamp[i + 1] = UpSampling1D(2)(self.gc[j])
@@ -271,7 +271,7 @@ class Graph_U(Model):
         self.F = tr_params['n_node_features']
         self.num_classes = tr_params['num_classes']
 
-        self.num_levels = 1
+        self.num_levels = 3
         self.v = verbose
 
         self.x_agg = [None for i in range(2 * (self.num_levels))]
@@ -288,7 +288,7 @@ class Graph_U(Model):
 
         softmax_inputs = [self.x_agg[-1], self.a_unpool[-1]]
 
-        output = GCSConv(self.num_classes, activation='softmax')(softmax_inputs)
+        output = GCNConv(self.num_classes, activation='softmax')(softmax_inputs)
 
         return output
 
@@ -333,10 +333,10 @@ class Graph_U(Model):
                 print('-------')
 
 
-    def gcn_block(self, inputs, filters=16, dropout=False):
+    def gcn_block(self, inputs, filters=32, dropout=False):
         x, a = inputs
 
-        x = GCSConv(filters, activation='relu', kernel_regularizer=l2(self.l2_reg))([x, a])
+        x = GCNConv(filters, activation='relu', kernel_regularizer=l2(self.l2_reg))([x, a])
         x = BatchNormalization()(x)
         if dropout:
             x = Dropout(0.1)(x)
