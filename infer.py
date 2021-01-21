@@ -1,5 +1,5 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from time import time
 from pathlib import Path
 import tensorflow as tf
@@ -102,9 +102,11 @@ def test_single(test_file, loaded_model, cfg, prep_obj, vis=False, iou_detail=Tr
     :return:
     '''
 
+    start = time()
     x, a, y = prep_obj.assess_scan(test_file)
     a = sp_matrix_to_sp_tensor(a)
     predictions = loaded_model.predict_step([x, a])
+    print('Elapsed: ', time() - start)
     pred_labels = np.argmax(predictions, axis=-1)
 
     if iou_detail:
@@ -141,5 +143,5 @@ if __name__ == '__main__':
         # load_status.assert_consumed()
         print(loaded_model)
 
-    test_single(test_file, loaded_model, cfg, prep, vis=True)
-    # test_all(val_files, loaded_model, cfg, prep)
+    # test_single(test_file, loaded_model, cfg, prep, vis=True)
+    test_all(val_files, loaded_model, cfg, prep)

@@ -2,6 +2,8 @@ from __future__ import print_function, division
 import tensorflow as tf
 import numpy as np
 import tensorflow_addons as tfa
+from tensorflow.keras import backend as K
+from tensorflow.keras.losses import SparseCategoricalCrossentropy
 
 """ Title: Lovasz-Softmax and Jaccard hinge loss in Tensorflow
 Author: Maxim Berman
@@ -120,19 +122,37 @@ dice_cross_entropy() obtained (partially) from:
 https://lars76.github.io/2018/09/27/loss-functions-for-segmentation.html
 '''
 
+def tversky_loss(y_true, y_pred, class_weights=None):
+    alpha = 0.7
+    beta = 1 - alpha
 
-def dice_loss(y_true, y_pred):
-    y_pred = tf.math.sigmoid(y_pred)
-    numerator = 2 * tf.reduce_sum(y_true * y_pred)
-    denominator = tf.reduce_sum(y_true + y_pred)
+    if y_true.ndim < 2:
+        y_true = K.cast(K.one_hot(y_true, num_classes=20), 'float32')
 
-    return 1 - numerator / denominator
+    y_pred = K.cast(y_pred, 'float32')
 
-def dice_cross_entropy(y_true, logits, class_weights=None):
+    ones = K.ones(K.shape(y_true))
+    p0 = y_pred  # proba that voxels are class i
+    p1 = ones - y_pred  # proba that voxels are not class i
+    g0 = y_true
+    g1 = ones - y_true
 
-    y_true = tf.cast(y_true, tf.float32)
+    num = K.sum(p0 * g0)
+    den = num + alpha * K.sum(p0 * g1) + beta * K.sum(p1 * g0)
 
-    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits) + dice_loss(y_true, logits)
+    T = K.sum(num / den)  # when summing over classes, T has dynamic range [0 Ncl]
+    Ncl = K.cast(K.shape(y_true)[-1], 'float32')
+    return Ncl - T
+
+
+def focal_tversky_loss(y_true, y_pred, gamma=1.1, class_weights=None):
+    tv = tversky_loss(y_true, y_pred)
+    return K.pow(K.abs(1 - tv), gamma)
+
+
+def focal_tversky_weighted(y_true, logits, class_weights=None):
+    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
+    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits) + focal_tversky_loss(y_true, logits)
 
     if class_weights is not None:
         class_weights = tf.cast(class_weights, tf.float32)
@@ -142,56 +162,51 @@ def dice_cross_entropy(y_true, logits, class_weights=None):
     return tf.reduce_mean(o)
 
 
-def dice_cross_entropy_weighted(y_true, predictions):
+def generalized_dice_coeff(y_true, y_pred):
+    y_true = K.cast(K.one_hot(y_true, num_classes=20), 'float32')
+    y_pred = K.cast(y_pred, 'float32')
+    w = K.sum(y_true)
+    w = 1/(w**2+0.000001)
+    # Compute gen dice coef:
+    numerator = y_true*y_pred
+    numerator = w*K.sum(numerator)
+    numerator = K.sum(numerator)
 
-    y_true = tf.cast(y_true, tf.float32)
-    o = tf.nn.sigmoid_cross_entropy_with_logits(y_true, predictions) + dice_loss(y_true, predictions)
+    denominator = y_true+y_pred
+    denominator = w*K.sum(denominator)
+    denominator = K.sum(denominator)
+
+    gen_dice_coef = 2*numerator/denominator
+
+    return gen_dice_coef
+
+
+def generalized_dice_loss(y_true, y_pred, class_weights=None):
+    return 1 - generalized_dice_coeff(y_true, y_pred)
+
+
+def dice_loss(y_true, y_pred, class_weights=None):
+    if y_true.ndim < 2:
+        y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
+    y_pred = tf.math.sigmoid(y_pred)
+    numerator = 2 * tf.reduce_sum(y_true * y_pred)
+    denominator = tf.reduce_sum(y_true + y_pred)
+
+    return 1 - numerator / denominator
+
+
+def dice_cross_entropy(y_true, logits, class_weights=None):
+
+    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
+    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits) + dice_loss(y_true, logits)
+
+    if class_weights is not None:
+        class_weights = tf.cast(class_weights, tf.float32)
+        weights = tf.reduce_sum(class_weights * y_true, axis=1)
+        o = o * weights
 
     return tf.reduce_mean(o)
 
-
-def one_hot_encoding(y_true):
-    '''
-    Does one-hot encoding on 1-dimensional sparse label array
-    :param y_true: 1-dimensional point-wise ground truth label array
-    :param cfg: model configuration dictionary
-    :return: 2D one-hot encoded label array
-    '''
-
-    N = y_true.shape[0]
-    one_hot = np.zeros((N, 20))
-
-    for row in range(one_hot.shape[0]):
-        one_hot[row, y_true[row]] = 1
-
-    return one_hot
-
-def tversky(y_true, y_pred, smooth=1, alpha=0.7):
-    y_pred = tf.argmax(y_pred, axis=-1)
-    y_pred = tf.cast(y_pred, tf.float32)
-    y_true = tf.cast(y_true, tf.float32)
-
-    true_pos = tf.reduce_sum(y_true * y_pred)
-    false_neg = tf.reduce_sum(y_true * (1 - y_pred))
-    false_pos = tf.reduce_sum((1 - y_true) * y_pred)
-
-    return (true_pos + smooth) / (true_pos + (alpha * false_neg) + ((1 - alpha) * false_pos) + smooth)
-
-
-def tversky_loss(y_true, y_pred):
-    return 1 - tversky(y_true, y_pred)
-
-
-def focal_tversky_loss(y_true, y_pred, gamma=0.75, class_weights=None):
-    tv = tversky(y_true, y_pred)
-    return tf.pow(tf.abs(1 - tv), gamma)
-
-def sigmoid_focal_xentropy(y_true, y_pred):
-    y_pred = tf.argmax(y_pred, axis=-1)
-    y_true = tf.cast(y_true, tf.float32)
-    y_pred = tf.cast(y_pred, tf.float32)
-
-    return tfa.losses.sigmoid_focal_crossentropy(y_true, y_pred)
 
 if __name__ == '__main__':
 
