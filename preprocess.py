@@ -1,3 +1,4 @@
+from pathlib import PurePath
 import cv2
 from spektral.layers import GCNConv
 from spektral.data import Dataset, Graph, DisjointLoader
@@ -48,10 +49,10 @@ class Preprocess:
             calib (calibration parameters from the current scan sequence)
             img (image corresponding to current scan id)
         '''
-
-        path_split = self.scan_path.split('\\')
-        scan_no = (path_split[-1]).split('.')[0]
-        seq_path = join(path_split[0], path_split[1])
+        path_parts = PurePath(self.scan_path).parts
+        scan_no = (path_parts[-1]).split('.')[0]
+        seq_path = list(path_parts)[:-2]
+        seq_path = join(*seq_path)
 
         self.pc = read_bin_velodyne(self.scan_path)
 
