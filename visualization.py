@@ -1,5 +1,4 @@
 import os
-os.environ['ETS_TOOLKIT'] = 'qt4'
 import numpy as np
 from mayavi import mlab
 import networkx as nx
@@ -84,7 +83,7 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
         x, y, z = grid
         mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
-def show_graph(pc, graph, show_voxel=True):
+def show_graph(pc, graph, show_voxel=False):
     """
     Display voxel containing graph (nodes, edges)
 
@@ -94,8 +93,8 @@ def show_graph(pc, graph, show_voxel=True):
     """
     point_size = 0.04#0.2
     edge_size = 0.01
-    # G = nx.from_scipy_sparse_matrix(graph)
-    G = nx.from_numpy_array(graph)
+    G = nx.from_scipy_sparse_matrix(graph)
+    # G = nx.from_numpy_array(graph)
     G = nx.convert_node_labels_to_integers(G)
     if pc.shape[1] > 5:
         rgb = pc[:, 3:]
@@ -250,11 +249,14 @@ class PC_Vis:
 
 
 if __name__ == '__main__':
-    from _redundant.dataprep import get_labels, read_bin_velodyne
+    from preprocess import *
+
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-    # x = np.genfromtxt('samples/testpc.csv', delimiter=',')
-    # y = get_labels('../samples/testpc.label')
-    pc = os.path.join(BASE_DIR, '08', 'velodyne', '000000.bin')
-    x = read_bin_velodyne(pc)
-    y = get_labels(os.path.join(BASE_DIR, '08', 'labels', '000000.label'))
-    PC_Vis.draw_pc_sem_ins(x, y)
+    model_cfg = get_cfg_params(base_dir=BASE_DIR)
+    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
+    sample = train_files[0]
+    prep = Preprocess(model_cfg)
+    x, a, y = prep.assess_scan(sample)
+
+    # PC_Vis.draw_pc(x, True)
+    show_graph(x, a, False)
