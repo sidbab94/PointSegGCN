@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
 from scipy.sparse import coo_matrix, csr_matrix
 
 def color_mask(dist_adj, labels):
@@ -46,17 +46,15 @@ def kdtree(points, nn):
     dist, idx = search.kneighbors(points)
     return dist[:, 1:], idx[:, 1:]
 
-def balltree_graph(points, radius=2.0):
+def balltree_graph(points, radius=0.3, mode='connectivity'):
     '''
     Performs radius-based nearest neighbour search and computes a sparse adjacency matrix using Scikit-learn's API
     :param points: point cloud array
     :param radius: radius of sphere to search for neighbours within
     :return: sparse adjacency matrix
     '''
-    neigh = NearestNeighbors(radius=radius)
-    neigh.fit(points[:, :3])
 
-    return neigh.radius_neighbors_graph(points[:, :3])
+    return radius_neighbors_graph(points[:, :3], radius, mode=mode, include_self=True)
 
 def compute_adjacency(points, nn=5, labels=None):
     '''
@@ -102,15 +100,26 @@ def compute_adjacency(points, nn=5, labels=None):
     # print(type(W), W.shape)
 
 if __name__ == '__main__':
-    from preproc_utils.readers import read_bin_velodyne
-    from visualization import show_voxel
-    from mayavi import mlab
-    import os
+    from visualization import show_graph
+
+    from preprocess import *
+    from time import time
+
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+    model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='../config/semantic-kitti.yaml', train_cfg='../config/tr_config.yml')
+    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
+    sample = train_files[0]
+    prep = Preprocess(model_cfg)
+    x, a, y = prep.assess_scan(sample)
 
-    pc = os.path.join(BASE_DIR, '08', 'velodyne', '000000.bin')
-    x = read_bin_velodyne(pc)
+    tic = time()
+    A = balltree_graph(x, radius=0.3)
+    print(type(A))
+    print(time() - tic)
 
-    A = compute_adjacency(x)
-    show_voxel(x, A)
-    mlab.show()
+    tic = time()
+    A = compute_adjacency(x, nn=10)
+    print(type(A))
+    print(time() - tic)
+    # show_graph(x, A)
+    # mlab.show()
