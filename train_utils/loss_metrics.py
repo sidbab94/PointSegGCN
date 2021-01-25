@@ -1,7 +1,6 @@
 from __future__ import print_function, division
 import tensorflow as tf
 import numpy as np
-import tensorflow_addons as tfa
 from tensorflow.keras import backend as K
 from tensorflow.keras.losses import SparseCategoricalCrossentropy
 
@@ -236,7 +235,3 @@ if __name__ == '__main__':
     y_pred = np.array([1, 2, 3, 1, 4, 3], dtype=np.float32)
     y_true = np.array([1, 2, 3, 1, 2, 3], dtype=np.float32)
 
-    fl = tfa.losses.SigmoidFocalCrossEntropy()
-    loss = tfa.losses.sigmoid_focal_crossentropy(y_true, y_pred)
-
-    print(loss)
