@@ -207,6 +207,29 @@ def dice_cross_entropy(y_true, logits, class_weights=None):
 
     return tf.reduce_mean(o)
 
+def weighted_cross_entropy(y_true, logits, class_weights=None):
+
+    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
+    o = tf.nn.weighted_cross_entropy_with_logits(y_true, logits, pos_weight=1.2)
+
+    if class_weights is not None:
+        class_weights = tf.cast(class_weights, tf.float32)
+        weights = tf.reduce_sum(class_weights * y_true, axis=1)
+        o = o * weights
+
+    return tf.reduce_mean(o)
+
+def cross_entropy(y_true, logits, class_weights=None):
+
+    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
+    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits)
+
+    if class_weights is not None:
+        class_weights = tf.cast(class_weights, tf.float32)
+        weights = tf.reduce_sum(class_weights * y_true, axis=1)
+        o = o * weights
+
+    return tf.reduce_mean(o)
 
 if __name__ == '__main__':
 
