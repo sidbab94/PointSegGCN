@@ -3,7 +3,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from pathlib import Path
 import random
-
+import tensorflow as tf
 from tensorflow.keras.models import load_model
 from spektral.layers.ops import sp_matrix_to_sp_tensor
 
@@ -11,6 +11,7 @@ from preprocess import *
 from time import time
 from train_utils.eval_metrics import iouEval
 from visualization import PC_Vis
+from model import Res_GCN_v3 as network
 
 
 def test_all(FLAGS):
@@ -24,12 +25,19 @@ def test_all(FLAGS):
     model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
     prep = Preprocess(model_cfg)
 
-    if FLAGS.model is None:
-        latest_model_path = sorted(Path('./models').iterdir(), key=os.path.getmtime)[-1]
-        loaded_model = load_model(filepath=latest_model_path, compile=False)
-        print('No path provided. Latest saved model loaded from: ', latest_model_path)
+    if FLAGS.ckpt:
+        loaded_model = network(model_cfg)
+        latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
+        load_status = loaded_model.load_weights(latest_checkpoint)
+        load_status.assert_consumed()
+        print('Model deserialized and loaded from: ', latest_checkpoint)
     else:
-        loaded_model = load_model(filepath=FLAGS.model, compile=False)
+        if FLAGS.model is None:
+            latest_model_path = sorted(Path('./models').iterdir(), key=os.path.getmtime)[-1]
+            loaded_model = load_model(filepath=latest_model_path, compile=False)
+            print('No path provided. Latest saved model loaded from: ', latest_model_path)
+        else:
+            loaded_model = load_model(filepath=FLAGS.model, compile=False)
 
     _, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg)
 
@@ -110,12 +118,19 @@ def test_single(FLAGS):
     model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
     prep = Preprocess(model_cfg)
 
-    if FLAGS.model is None:
-        latest_model_path = sorted(Path('./models').iterdir(), key=os.path.getmtime)[-1]
-        loaded_model = load_model(filepath=latest_model_path, compile=False)
-        print('No path provided. Latest saved model loaded from: ', latest_model_path)
+    if FLAGS.ckpt:
+        loaded_model = network(model_cfg)
+        latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
+        load_status = loaded_model.load_weights(latest_checkpoint)
+        load_status.assert_consumed()
+        print('Model deserialized and loaded from: ', latest_checkpoint)
     else:
-        loaded_model = load_model(filepath=FLAGS.model, compile=False)
+        if FLAGS.model is None:
+            latest_model_path = sorted(Path('./models').iterdir(), key=os.path.getmtime)[-1]
+            loaded_model = load_model(filepath=latest_model_path, compile=False)
+            print('No path provided. Latest saved model loaded from: ', latest_model_path)
+        else:
+            loaded_model = load_model(filepath=FLAGS.model, compile=False)
 
     if FLAGS.file is None:
         train_files, val_files, test_files = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg)
