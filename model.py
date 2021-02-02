@@ -4,19 +4,19 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Concatenate, Dense, MaxPool1D
+from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Concatenate, Dense, Add
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
-from spektral.layers import GCNConv, GlobalMaxPool, MinCutPool, GCSConv, EdgeConv
+from spektral.layers import GCNConv, GlobalMaxPool, MinCutPool, GCSConv, EdgeConv, TopKPool
 from train_utils.tf_utils import unPool
 
 
 def conv_relu_bn(parents, filters, dropout=False, l2_reg=0.01):
     X_in, A_in = parents
-    x = GCNConv(filters, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
-    x = BatchNormalization()(x)
+    x = GCNConv(filters, activation='relu', kernel_initializer='he_normal', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    # x = BatchNormalization()(x)
     if dropout:
-        x = Dropout(0.1)(x)
+        x = Dropout(0.2)(x)
     return x
 
 
@@ -62,6 +62,100 @@ def gcs_block(parents, filters, dropout=False, l2_reg=0.01):
     return x
 
 
+def Res_GCN_v2(tr_params):
+
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+
+    X_1 = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg), kernel_initializer='he_normal')([X_in, A_in])
+
+    X_2 = conv_relu_bn((X_1, A_in), 32, l2_reg=l2_reg)
+
+    X_3 = conv_relu_bn((X_2, A_in), 64, l2_reg=l2_reg)
+
+    X_4 = conv_relu_bn((X_3, A_in), 64, l2_reg=l2_reg)
+
+    X_5 = conv_relu_bn((X_4, A_in), 128, dropout=True, l2_reg=l2_reg)
+
+    X_6 = conv_relu_bn((X_5, A_in), 64, dropout=True, l2_reg=l2_reg)
+    X_7 = Add(name='add_7_4')([X_6, X_4])
+
+    X_8 = conv_relu_bn((X_7, A_in), 64, dropout=True, l2_reg=l2_reg)
+    X_9 = Add(name='add_9_3')([X_8, X_3])
+
+    X_10 = conv_relu_bn((X_9, A_in), 32, dropout=True, l2_reg=l2_reg)
+    X_11 = Add(name='add_11_2')([X_10, X_2])
+
+    # output = GCNConv(num_classes, activation='softmax', name='gcn_output')([X_11, A_in])
+    output = Dense(num_classes, activation='softmax')(X_11)
+
+    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v4')
+
+    return model
+
+
+def Res_GCN_v3(tr_params):
+
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+
+    X_1 = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg), kernel_initializer='he_normal')([X_in, A_in])
+
+    X_2 = conv_relu_bn((X_1, A_in), 32, l2_reg=l2_reg)
+
+    X_3 = conv_relu_bn((X_2, A_in), 64, l2_reg=l2_reg)
+
+    X_4 = conv_relu_bn((X_3, A_in), 64, l2_reg=l2_reg)
+
+    X_5 = Concatenate()([X_4, X_3, X_2, X_1])
+
+    X_6 = Dense(64, activation='relu', kernel_initializer='he_normal')(X_5)
+
+    # output = GCNConv(num_classes, activation='softmax', name='gcn_output')([X_11, A_in])
+    output = Dense(num_classes, activation='softmax')(X_6)
+
+    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v4')
+
+    return model
+
+def topk_gcn(tr_params):
+
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+
+    X_1 = conv_relu_bn((X_in, A_in), 16, l2_reg=l2_reg)
+    X_2, A_2, I_2 = TopKPool(0.5, kernel_regularizer=l2(l2_reg))([X_1, A_in, I_in])
+
+    X_3 = conv_relu_bn((X_2, A_2), 16, l2_reg=l2_reg)
+    X_4, A_4, I_4 = TopKPool(0.5, kernel_regularizer=l2(l2_reg))([X_3, A_2, I_2])
+
+    X_5 = conv_relu_bn((X_4, A_4), 16, l2_reg=l2_reg)
+    X_6 = conv_relu_bn((X_5, A_4), 16, l2_reg=l2_reg)
+    # X_6, A_6, I_6 = TopKPool(0.4, kernel_regularizer=l2(l2_reg))([X_5, A_4, I_4])
+
+    concat = Concatenate(axis=0)([X_6, X_5, X_3])
+
+    dense1 = mlp_block(concat, 64)
+    dense2 = mlp_block(dense1, 32)
+    output = Dense(num_classes, activation='softmax')(dense2)
+
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='GraphSEG_v4')
+
+    return model
+
 def edgeconv(parents, l2_reg, filters=32):
 
     x, a = parents
@@ -89,7 +183,6 @@ def dgcnn_v1(model_cfg):
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
-    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
 
     X_1 = edgeconv((X_in, A_in), l2_reg)
     X_2 = edgeconv((X_1, A_in), l2_reg)
@@ -104,7 +197,7 @@ def dgcnn_v1(model_cfg):
 
     output = Dense(num_classes, activation='softmax')(mlp_4)
 
-    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='EdgeConv_v1')
+    model = Model(inputs=[X_in, A_in], outputs=output, name='EdgeConv_v1')
     return model
 
 
@@ -116,7 +209,6 @@ def dgcnn_v2(model_cfg):
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
-    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
 
     levels = 2
     skips = []
@@ -142,7 +234,7 @@ def dgcnn_v2(model_cfg):
 
     output = Dense(num_classes, activation='softmax')(mlp_4)
 
-    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='EdgeConv_v1')
+    model = Model(inputs=[X_in, A_in], outputs=output, name='EdgeConv_v1')
     return model
 
 
