@@ -5,7 +5,7 @@ from spektral.data import Dataset, Graph, DisjointLoader
 
 from preproc_utils.readers import *
 from preproc_utils.sensor_fusion import SensorFusion
-from preproc_utils.graph_gen import balltree_graph as compute_graph
+from preproc_utils.graph_gen import compute_adjacency as compute_graph
 from preproc_utils.voxelization import voxelize
 
 
@@ -36,9 +36,12 @@ class Preprocess:
 
         self.get_scan_data()
         self.get_modality()
+        self.get_depth()
+        self.reduce_data()
+        self.prune_points()
         self.get_graph()
 
-        return self.pc_rgb, self.A, self.labels_rgb
+        return self.pc_xyzirgbd, self.A, self.labels_xyzirgbd
 
     def get_scan_data(self):
         '''
@@ -62,16 +65,16 @@ class Preprocess:
         calib_path = join(seq_path, 'calib.txt')
         self.calib = read_calib_file(calib_path)
 
-        img_path = join(seq_path, 'image_2', scan_no + '.png')
-        self.img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+        self.img_path = join(seq_path, 'image_2', scan_no + '.png')
+        self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
 
     def get_modality(self):
         '''
         Run the SensorFusion pipeline on scan attributes, to obtain X,Y augmented with RGB information
         '''
         proj = SensorFusion(self.pc, self.labels, self.calib, self.img)
-        self.pc_rgb, self.labels_rgb = proj.render_lidar_rgb()
-        if not isinstance(self.pc_rgb, np.ndarray):
+        self.pc_xyzirgb, self.labels_xyzirgbd = proj.render_lidar_rgb()
+        if not isinstance(self.pc_xyzirgb, np.ndarray):
             # boolean flag to recognize memory exception error, while computing projection matrices
             self.invalid_scan = True
 
@@ -81,11 +84,38 @@ class Preprocess:
         A is also preprocessed (normalization) for Graph Convolution operations
         '''
         if not self.invalid_scan:
-            self.A = compute_graph(self.pc_rgb)
+            self.A = compute_graph(self.pc_xyzirgbd)
             self.A = GCNConv.preprocess(self.A)
             # self.A = sp_matrix_to_sp_tensor(self.A)
         else:
             self.A = None
+
+    def get_depth(self):
+
+        depth = np.linalg.norm(self.pc_xyzirgb[:, :3], axis=1)
+        self.pc_xyzirgbd = np.zeros((self.pc_xyzirgb.shape[0], 8))
+        self.pc_xyzirgbd[:, :7] = self.pc_xyzirgb
+        self.pc_xyzirgbd[:, 7] = depth
+
+    def reduce_data(self):
+        '''
+        Extracts depth information from the point cloud by means of Euclidean Norm,
+        also filters the sample wrt sensor-point distance, set to 35 metres
+        :return: None
+        '''
+
+        valid_idx = np.where(self.pc_xyzirgbd[:, 7] < 35.0)
+        self.pc_xyzirgbd = self.pc_xyzirgbd[valid_idx[0], :]
+        self.labels_xyzirgbd = self.labels_xyzirgbd[valid_idx[0]]
+
+    def prune_points(self):
+
+        N = self.pc_xyzirgbd.shape[0]
+        if N % 4 != 0:
+            prune_idx = np.random.choice(N, N % 4, replace=False)
+            self.pc_xyzirgbd = np.delete(self.pc_xyzirgbd, prune_idx, 0)
+            self.labels_xyzirgbd = np.delete(self.labels_xyzirgbd, prune_idx, 0)
+
 
     def assess_voxel(self, vox_id):
         '''
@@ -122,14 +152,15 @@ class BatchData(Dataset):
         prep_obj: preprocessor object
     """
 
-    def __init__(self, file_list, prep_obj, model_cfg, verbose=False, vox=False, sampling=False):
+    def __init__(self, file_list, prep_obj, verbose=False, vox=False, sampling=False, augment=False):
 
         self.file_list = file_list
         self.prep = prep_obj
         self.vv = verbose
         self.vox = vox
         self.ss = sampling
-        self.ss_ratio = 20#model_cfg['batch_size']
+        self.ss_ratio = 20
+        self.augment = augment
         super().__init__()
 
     def read(self):
@@ -164,12 +195,84 @@ class BatchData(Dataset):
                 if a is None:
                     print('Numpy Memory Error, skipping current scan: ', file)
                     continue
-                output.append(Graph(x=x, a=a, y=y))
+                if self.augment:
+                    aug_obj = AugmentPC((x, a, y), rot=True, downsample=False)
+                    for i in aug_obj.augmented:
+                        X, A, Y = i
+                        output.append(Graph(x=X, a=A, y=Y))
+                else:
+                    output.append(Graph(x=x, a=a, y=y))
 
         return output
 
 
-def prep_dataset(file_list, prep_obj, model_cfg, verbose=False, vox=False, downsampling=False):
+class AugmentPC:
+
+    def __init__(self, inputs, rot=False, rot_count=3, angle=60,
+                 axis='z', downsample=False, ds_ratio=5):
+
+        self.pc, self.a, self.labels = inputs
+        self.augmented = [[self.pc, self.a, self.labels]]
+        if rot:
+            self.rotate_pc(axis, angle, rot_count)
+        if downsample:
+            self.downsample(ds_ratio)
+
+    def rotate_pc(self, axis, angle, rot_count):
+        rot_mask = np.arange(-1, 1, 0.25)
+        for i in range(rot_count):
+            x = self.pc
+            rads = np.radians(rot_mask[i] * angle)
+            rot = self.get_rot_matrix(axis, rads)
+            rotated = rot @ x[:, :3].T
+            x[:, :3] = rotated.T
+            self.augmented.append([x, self.a, self.labels])
+
+    def get_rot_matrix(self, axis, rads):
+
+        cosa = np.cos(rads)
+        sina = np.sin(rads)
+
+        if axis == 'x':
+            return np.array([[1, 0, 0], [0, cosa, sina], [0, -sina, cosa]])
+        elif axis == 'y':
+            return np.array([[cosa, 0, -sina], [0, 1, 0], [sina, 0, cosa]])
+        elif axis == 'z':
+            return np.array([[cosa, sina, 0], [-sina, cosa, 0], [0, 0, 1]])
+        else:
+            raise Exception('Invalid axis provided')
+
+    def downsample(self, ds_ratio):
+
+        # initialize random generator w/ seed
+        rng = np.random.default_rng(seed=123)
+
+        for j in range(len(self.augmented)):
+
+            pc, _, _, = self.augmented[j]
+            N = pc.shape[0]
+
+            # sample size (floored)
+            valid_ss = N // ds_ratio
+            # final sample size with surplus
+            rem_ss = N - (valid_ss * ds_ratio)
+            # point indices of original point cloud
+            glo_ind = np.arange(N)
+
+            for i in range(ds_ratio):
+
+                if i == ds_ratio - 1:
+                    valid_ss += rem_ss
+
+                curr_ind = rng.choice(glo_ind, valid_ss, replace=True)
+                # prune point indices wrt indices already sampled --> mutual exclusion of samples
+                del_ind = np.nonzero(np.isin(glo_ind, curr_ind))
+                glo_ind = np.delete(glo_ind, del_ind)
+
+                self.augmented.append([pc[curr_ind, :], self.a[curr_ind][:, curr_ind], self.labels[curr_ind]])
+
+
+def prep_dataset(file_list, prep_obj, verbose=False, vox=False, downsampling=False, augment=False):
     '''
     Run BatchData pipeline on list of scan files
     :param file_list: list of velodyne scan paths to process
@@ -178,29 +281,9 @@ def prep_dataset(file_list, prep_obj, model_cfg, verbose=False, vox=False, downs
     :return: Spektral dataset
     '''
 
-    dataset = BatchData(file_list, prep_obj, model_cfg, verbose, vox, downsampling)
+    dataset = BatchData(file_list, prep_obj, verbose, vox, downsampling, augment)
 
     return dataset
-
-
-def prep_datasets(dataset_path, prep_obj, model_cfg, file_count=10, verbose=False, vox=False, downsampling=False):
-    '''
-    Get file list, then run BatchData pipeline to obtain training and validation datasets
-    :param dataset_path: dataset base directory path
-    :param prep_obj: preprocessor object
-    :param model_cfg: model configuration dictionary
-    :param file_count: stop index for each sequence
-    :param verbose: print out progress in terminal
-    :return: training and validation (Spektral) datasets
-    '''
-
-    train_files, val_files, _ = get_split_files(dataset_path=dataset_path, cfg=model_cfg,
-                                                count=file_count, shuffle=True)
-
-    tr_dataset = BatchData(train_files, prep_obj, model_cfg, verbose, vox, downsampling)
-    va_dataset = BatchData(val_files, prep_obj, model_cfg, verbose, vox, downsampling)
-
-    return tr_dataset, va_dataset
 
 
 def prep_loader(dataset, model_cfg):
@@ -280,6 +363,7 @@ def gen_sample_indices(x, ss_ratio=10):
 
 if __name__ == '__main__':
     from time import time
+    from visualization import PC_Vis
 
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 
@@ -289,6 +373,6 @@ if __name__ == '__main__':
 
     prep = Preprocess(model_cfg)
 
-    va_dataset = BatchData(val_files, prep, verbose=True)
+    dataset = prep_dataset(train_files[:10], prep, augment=True)
+    print(dataset)
 
-    print(va_dataset)
