@@ -5,12 +5,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from tensorflow_addons.optimizers import CyclicalLearningRate
 
 from train_utils import loss_metrics
 from train_utils.eval_metrics import iouEval
 
 from preprocess import *
-from model import Res_GCN_v1 as network
+from model import topk_gcn as network
 
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
@@ -30,7 +31,8 @@ def assign_loss_func(name):
                  'tversky': loss_metrics.tversky_loss,
                  'gen_dice_loss': loss_metrics.generalized_dice_loss,
                  'focal_tv_weighted': loss_metrics.focal_tversky_weighted,
-                 'wcce': loss_metrics.weighted_cross_entropy}
+                 'wcce': loss_metrics.weighted_cross_entropy,
+                 'sparse_ce': loss_metrics.sparse_cross_entropy}
 
     return loss_dict.get(str(name))
 
@@ -48,7 +50,6 @@ def train_step(inputs, target, model, optimizer, miou_obj, cfg, loss_fn='dice_lo
 
     X, A, I, = inputs
     Y = np.concatenate(target).ravel()
-
     # experimental class imbalancing solution
     class_weights = map_content(cfg)
     # class_weights = None
@@ -56,7 +57,7 @@ def train_step(inputs, target, model, optimizer, miou_obj, cfg, loss_fn='dice_lo
     loss_obj = assign_loss_func(loss_fn)
 
     with tf.GradientTape() as tape:
-        predictions = model([X, A], training=True)
+        predictions = model([X, A, I], training=True)
         tr_loss = loss_obj(Y, predictions, class_weights=class_weights)
 
     gradients = tape.gradient(tr_loss, model.trainable_variables)
@@ -97,7 +98,7 @@ def evaluate(loader, model, cfg, miou_obj, loss_fn='dice_loss'):
         X, A, I = inputs
         Y = np.concatenate(target).ravel()
 
-        predictions = model([X, A], training=False)
+        predictions = model([X, A, I], training=False)
         pred_labels = np.argmax(predictions, axis=-1)
 
         va_loss = loss_obj(Y, predictions, class_weights=class_weights)
@@ -140,15 +141,18 @@ def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg,
     print('----------------------------------------------------------------------------------')
 
     if len(tr_files_upd) != 0:
-        tr_ds = prep_dataset(tr_files_upd, prep_obj, model_cfg, verbose=False, vox=vox, downsampling=downsampling)
+        tr_ds = prep_dataset(tr_files_upd, prep_obj, verbose=False, vox=vox, downsampling=downsampling, augment=True)
         tr_loader = prep_loader(tr_ds, model_cfg)
         return tr_loader
     else:
-        if verbose:
+        if epoch == model_cfg['ep']:
+            if verbose:
+                print('----------------------------------------------------------------------------------')
+                print('Training dataset exhausted, stopping training at {} epochs'.format(epoch))
             print('----------------------------------------------------------------------------------')
-            print('Training dataset exhausted, stopping training at {} epochs'.format(epoch))
-        print('----------------------------------------------------------------------------------')
-        return None
+            return None
+        else:
+            return 'reset'
 
 
 def configure_loaders(train_files, val_files, prep_obj, model_cfg, vox=False, downsampling=False):
@@ -160,10 +164,10 @@ def configure_loaders(train_files, val_files, prep_obj, model_cfg, vox=False, do
     :return: training and validation Spektral data loaders
     '''
 
-    tr_ds = prep_dataset(train_files, prep_obj, model_cfg, verbose=True, vox=vox, downsampling=downsampling)
+    tr_ds = prep_dataset(train_files, prep_obj, verbose=True, vox=vox, downsampling=downsampling, augment=True)
     tr_loader = prep_loader(tr_ds, model_cfg)
 
-    va_ds = prep_dataset(val_files, prep_obj, model_cfg, verbose=True, vox=vox, downsampling=downsampling)
+    va_ds = prep_dataset(val_files, prep_obj, verbose=True, vox=vox, downsampling=downsampling)
     va_loader = prep_loader(va_ds, model_cfg)
 
     return tr_loader, va_loader
@@ -182,6 +186,7 @@ def train(FLAGS):
     model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
 
     model = network(model_cfg)
+    # model.summary()
     prep = Preprocess(model_cfg)
 
     tr_start_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
@@ -197,22 +202,13 @@ def train(FLAGS):
     train_miou_obj = iouEval(num_classes, class_ignore)
     val_miou_obj = iouEval(num_classes, class_ignore)
 
-    lr_schedule = ExponentialDecay(
-        model_cfg['learning_rate'],
-        decay_steps=model_cfg['lr_decay'],
-        decay_rate=0.96,
-        staircase=True)
-    opt = Adam(learning_rate=lr_schedule)
-
-
-
 
     curr_batch = epoch = tr_loss = tr_miou = 0
     list_mious = [0.0]
     # epoch at which to switch to lovàsz loss
     loss_switch_ep = model_cfg['loss_switch_ep']
     # Default loss function
-    loss_func = 'cross_entropy'
+    loss_func = 'sparse_ce'
 
     if FLAGS.dynamic:
 
@@ -220,8 +216,7 @@ def train(FLAGS):
         dyn_count = 200
         # Dynamic loading 'step' count
         dyn_idx = 0
-        ep_int = 10
-        dyn_reset = model_cfg['ep'] // ep_int
+        ep_int = 20
 
         train_files, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg, shuffle=True)
         val_files = val_files[:200]
@@ -231,7 +226,7 @@ def train(FLAGS):
                                   block_len=dyn_count*10, vox=FLAGS.vox, downsampling=FLAGS.downsample)
 
         print('     Preparing validation data loader..')
-        va_ds = prep_dataset(val_files, prep, model_cfg, verbose=True,
+        va_ds = prep_dataset(val_files, prep, verbose=True,
                              vox=FLAGS.vox, downsampling=FLAGS.downsample)
         va_loader = prep_loader(va_ds, model_cfg)
 
@@ -246,6 +241,13 @@ def train(FLAGS):
     print('     TRAINING START...')
     print('----------------------------------------------------------------------------------')
 
+    lr_schedule = CyclicalLearningRate(
+        initial_learning_rate=model_cfg['learning_rate'],
+        maximal_learning_rate=model_cfg['learning_rate']*100,
+        step_size=tr_loader.steps_per_epoch,
+        scale_fn=lambda x: 1.,
+    )
+    opt = Adam(learning_rate=lr_schedule)
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
     manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
 
@@ -253,7 +255,6 @@ def train(FLAGS):
         ckpt.restore(manager.latest_checkpoint)
         if manager.latest_checkpoint:
             print("     Restored from checkpoint: {}".format(manager.latest_checkpoint))
-
 
     for batch in tr_loader:
 
@@ -295,13 +296,13 @@ def train(FLAGS):
 
             ckpt.step.assign_add(1)
 
-            if (int(ckpt.step) % 2 == 0):
+            if (int(ckpt.step) % 10 == 0):
 
                 print('----------------------------------------------------------------------------------')
 
-                save_path = manager.save()
+                # save_path = manager.save()
                 weights_path = './ckpt_weights/' + tr_start_time
-                print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+                # print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
 
                 if (va_miou > np.max(list_mious)) and FLAGS.save:
 
@@ -319,12 +320,14 @@ def train(FLAGS):
             # Training loader updated every 20 epochs
             if FLAGS.dynamic and (int(epoch) % ep_int == 0):
                 dyn_idx += 1
-                if dyn_idx == dyn_reset:
-                    dyn_idx = 0
                 tr_loader = update_loader(train_files, prep, dyn_idx, epoch,
                                           model_cfg, verbose=True, vox=FLAGS.vox, downsampling=FLAGS.downsample)
                 if tr_loader is None:
                     break
+                elif tr_loader == 'reset':
+                    dyn_idx = 0
+                    tr_loader = update_loader(train_files, prep, dyn_idx, epoch,
+                                              model_cfg, verbose=True, vox=FLAGS.vox, downsampling=FLAGS.downsample)
 
             # Switch loss function to Lovàsz-Softmax if epoch reaches threshold (based on model cfg)
             if epoch == loss_switch_ep:
@@ -339,7 +342,7 @@ def train(FLAGS):
     print('----------------------------------------------------------------------------------')
 
     if FLAGS.save:
-        save_path = 'models/infer_v3_6_gcn_rgb_2000_bs2_cce_lov'
+        save_path = 'models/infer_v4_0_topkgcn_rgb_200_bs4_cce_lov'
         model.save(save_path)
         print('     Model saved to {}'.format(save_path))
         print('==================================================================================')
