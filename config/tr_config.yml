@@ -1,11 +1,11 @@
 
 training_params:
-  epochs: 400
-  batch_size: 4
+  epochs: 250
+  batch_size: 1
   num_classes: 20
-  learning_rate: 0.01
+  learning_rate: 0.001
   lr_decay_steps: 1000
   l2_reg: 0.001
   es_patience: 20
-  n_node_features: 6
+  n_node_features: 8
   lovasz_switch_ratio: 0.3
