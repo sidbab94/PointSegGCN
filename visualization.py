@@ -195,14 +195,15 @@ class PC_Vis:
 
 
     @staticmethod
-    def draw_pc(pc_xyzrgb, vis_test=False):
+    def draw_pc(pc_xyzrgbi, vis_test=False):
         pc = o3d.geometry.PointCloud()
-        pc.points = o3d.utility.Vector3dVector(pc_xyzrgb[:, 0:3])
+        pc.points = o3d.utility.Vector3dVector(pc_xyzrgbi[:, 0:3])
 
-        if np.max(pc_xyzrgb[:, 3:6]) > 20:  ## 0-255
-            pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6] / 255.)
-        else:
-            pc.colors = o3d.utility.Vector3dVector(pc_xyzrgb[:, 3:6])
+        if pc_xyzrgbi.shape[1] > 4:
+            if np.max(pc_xyzrgbi[:, 4:7]) > 20:  ## 0-255
+                pc.colors = o3d.utility.Vector3dVector(pc_xyzrgbi[:, 4:7] / 255.)
+            else:
+                pc.colors = o3d.utility.Vector3dVector(pc_xyzrgbi[:, 4:7])
 
         if vis_test:
             o3d.visualization.draw_geometries([pc])
@@ -245,6 +246,22 @@ class PC_Vis:
             PC_Vis.draw_pc(Y_semins, True)
 
         return Y_semins
+
+    @staticmethod
+    def draw_pc_depth(pc_xyzdrgbi):
+
+        depth = pc_xyzdrgbi[:, 3]
+        pc = o3d.geometry.PointCloud()
+        pc.points = o3d.utility.Vector3dVector(pc_xyzdrgbi[:, 0:3])
+        # d2rgb = np.interp(depth, (depth.min(), depth.max()), (0, 255))
+        # pc.colors = o3d.utility.Vector3dVector(d2rgb / 255.)
+
+        d2rgb = np.interp(depth, (depth.min(), depth.max()), (0.0, 255.0))
+        d2rgb = np.repeat(d2rgb[:, np.newaxis], 3, axis=1)
+        pc.colors = o3d.utility.Vector3dVector(d2rgb / 255.)
+
+        o3d.visualization.draw_geometries([pc])
+
 
 
 
