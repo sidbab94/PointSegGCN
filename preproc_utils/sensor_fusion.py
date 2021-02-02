@@ -51,7 +51,7 @@ class SensorFusion:
             imgfov_pc_pixel = pts_2d[:, inds].transpose()
 
             # get rgb array for projected 2d points based on nearest-pixel values on orignal image
-            color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype='float64')
+            color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype=np.float32)
             for i in range(imgfov_pc_pixel.shape[0]):
                 y_coord, x_coord = imgfov_pc_pixel[i]
                 val_x, val_y = int(round(x_coord)) - 1, int(round(y_coord)) - 1
@@ -59,18 +59,18 @@ class SensorFusion:
 
             # get lidar points corresponding to camera FOV and velodyne coordinates, color with mapped rgb values
             imgfov_pc_velo = self.pc[inds, :]
+            pc_xyzrgbi = np.zeros((imgfov_pc_velo.shape[0], 7), dtype=np.float32)
+            pc_xyzrgbi[:, :4] = imgfov_pc_velo[:, :4]
+            pc_xyzrgbi[:, 4:7] = color_array_pts2d
+            labels_xyzrgbi = self.labels[inds]
 
-            pc_rgb = np.zeros((imgfov_pc_velo.shape[0], 6), dtype='float64')
-            pc_rgb[:, :3] = imgfov_pc_velo
-            pc_rgb[:, 3:] = color_array_pts2d
-
-            labels_rgb = self.labels[inds]
 
         except MemoryError:
             # Projection computation may induce memory exceptions
             return None, None
 
-        return pc_rgb, labels_rgb
+        return pc_xyzrgbi, labels_xyzrgbi
+
 
     def project_velo_to_cam2(self):
         '''
@@ -95,12 +95,11 @@ class SensorFusion:
         :return:
         '''
 
-        points = self.pc.transpose()
+        points = self.pc[:, :3].transpose()
         num_pts = points.shape[1]
 
         # Change to homogenous coordinate
         points = np.vstack((points, np.ones((1, num_pts))))
-
         points = self.proj_mat @ points
         points[:2, :] /= points[2, :]
 
@@ -112,6 +111,8 @@ if __name__ == '__main__':
     from preproc_utils.readers import *
     from preprocess import Preprocess
     from visualization import PC_Vis
+    from pathlib import PurePath
+    import cv2
     import random
 
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
@@ -123,12 +124,21 @@ if __name__ == '__main__':
 
     prep = Preprocess(model_cfg)
 
-    _, _, _ = prep.assess_scan(random.choice(train_files))
-
-    pc, labels, calib, img = prep.pc, prep.labels, prep.calib, prep.img
+    pc = read_bin_velodyne(train_files[0])
+    path_parts = PurePath(train_files[0]).parts
+    scan_no = (path_parts[-1]).split('.')[0]
+    seq_path = list(path_parts)[:-2]
+    seq_path = join(*seq_path)
+    label_path = join('labels', scan_no + '.label')
+    labels = get_labels(join(seq_path, label_path), model_cfg)
+    calib_path = join(seq_path, 'calib.txt')
+    calib = read_calib_file(calib_path)
+    img_path = join(seq_path, 'image_2', scan_no + '.png')
+    img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
 
     fusion = SensorFusion(pc, labels, calib, img)
-    pc_rgb, labels_rgb = fusion.render_lidar_rgb()
+    pc_xyzrgbi = fusion.render_lidar_rgb()
 
-    PC_Vis.draw_pc(pc_rgb, vis_test=True)
+    # PC_Vis.draw_pc(pc, vis_test=True)
+    PC_Vis.draw_pc(pc_xyzrgbi, vis_test=True)
 
