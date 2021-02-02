@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph
+from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph, kneighbors_graph
 from scipy.sparse import coo_matrix, csr_matrix
 
 def color_mask(dist_adj, labels):
@@ -30,8 +30,8 @@ def sklearn_graph(points, nn=5):
     :return: sparse adjacency matrix
     '''
 
-    search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
-    graph = search.kneighbors_graph(points, mode='distance')
+    # search = NearestNeighbors(n_neighbors=nn+1, algorithm='kd_tree').fit(points)
+    graph = kneighbors_graph(points[:, :3], n_neighbors=nn, mode='connectivity', include_self=True)
 
     return graph
 
@@ -112,14 +112,14 @@ if __name__ == '__main__':
     prep = Preprocess(model_cfg)
     x, a, y = prep.assess_scan(sample)
 
-    tic = time()
-    A = balltree_graph(x, radius=0.3)
-    print(type(A))
-    print(time() - tic)
+    # tic = time()
+    # A = balltree_graph(x, radius=0.3)
+    # print(type(A))
+    # print(time() - tic)
 
     tic = time()
-    A = compute_adjacency(x, nn=10)
+    A = sklearn_graph(x, nn=5)
     print(type(A))
     print(time() - tic)
-    # show_graph(x, A)
+    show_graph(x, A)
     # mlab.show()
