@@ -51,18 +51,20 @@ if __name__ == '__main__':
                            help='Enable inference over all validation samples, displaying overall mIoU as output')
     inference.add_argument('--vis', default=False, action='store_true',
                            help='Enable visualization of single scan inferences')
+    inference.add_argument('--ckpt', default=False, action='store_true',
+                           help='Load model from latest checkpoint weights')
 
     FLAGS = parser.parse_args()
 
     if FLAGS.algorithm == 'training':
         print('==================================================================================')
-        print('Training Model..')
+        print('Training Mode')
         print('==================================================================================')
         train(FLAGS)
 
     elif FLAGS.algorithm == 'inference':
         print('==================================================================================')
-        print('Evaluating Model..')
+        print('Inference Mode')
         print('==================================================================================')
         if FLAGS.all:
             test_all(FLAGS)
