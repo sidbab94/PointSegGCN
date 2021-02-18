@@ -1,8 +1,11 @@
 import argparse
+from yaml import safe_load
 from trainer import train
 from infer import test_single, test_all
 
 if __name__ == '__main__':
+
+    base_dir = safe_load(open('./config/tr_config.yml', 'r'))['dataset']['base_dir']
 
     parser = argparse.ArgumentParser("Umbrella script for training / inference")
     parser.add_argument(
@@ -12,8 +15,8 @@ if __name__ == '__main__':
     )
 
     parser.add_argument('--dataset', '-d',
-                        type=str, default='D:/SemanticKITTI/dataset/sequences',
-                        help='Base SemanticKITTI dataset directory, default: D:/SemanticKITTI/dataset/sequences')
+                        type=str, default=base_dir,
+                        help='Base SemanticKITTI dataset directory, default: see config file')
     parser.add_argument('--datacfg', '-s',
                         type=str, default='./config/semantic-kitti.yaml',
                         help='File path to dataset configuration .yaml, default: ./config/semantic-kitti.yaml')
@@ -31,12 +34,8 @@ if __name__ == '__main__':
                                'dataset cannot be loaded onto memory/batch-loader')
     training.add_argument('--trial', default=False, action='store_true',
                           help='Enable TRIAL mode, for experimental training with smaller dataset splits')
-    training.add_argument('--downsample', default=False, action='store_true',
-                          help='Enable experimental downsampling of point clouds to lower computation '
-                               'costs on large adjacency matrices')
-    training.add_argument('--vox', default=False, action='store_true',
-                          help='Enable experimental voxelization of point clouds to lower computation '
-                               'costs on large adjacency matrices')
+    training.add_argument('--augment', default=False, action='store_true',
+                          help='Enable rotation-based augmentation of scans in pre-processing')
     training.add_argument('--save', default=True, action='store_false',
                           help='Disable intermittent saving of weights as well as final model after training')
 
