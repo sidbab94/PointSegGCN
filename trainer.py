@@ -11,7 +11,7 @@ from train_utils import loss_metrics
 from train_utils.eval_metrics import iouEval
 
 from preprocess import *
-from model import topk_gcn as network
+from model import Res_GCN_v7 as network
 
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
@@ -115,7 +115,7 @@ def evaluate(loader, model, cfg, miou_obj, loss_fn='dice_loss'):
 
 
 def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg,
-                  block_len=2000, verbose=False, vox=False, downsampling=False):
+                  FLAGS, block_len=2000, verbose=False):
     '''
     Updates training dataset loader with modified file-list
     :param train_files: list of 'train' scan file paths
@@ -141,7 +141,7 @@ def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg,
     print('----------------------------------------------------------------------------------')
 
     if len(tr_files_upd) != 0:
-        tr_ds = prep_dataset(tr_files_upd, prep_obj, verbose=False, vox=vox, downsampling=downsampling, augment=True)
+        tr_ds = prep_dataset(tr_files_upd, prep_obj, augment=FLAGS.augment, verbose=False)
         tr_loader = prep_loader(tr_ds, model_cfg)
         return tr_loader
     else:
@@ -155,7 +155,7 @@ def update_loader(train_files, prep_obj, curr_idx, epoch, model_cfg,
             return 'reset'
 
 
-def configure_loaders(train_files, val_files, prep_obj, model_cfg, vox=False, downsampling=False):
+def configure_loaders(train_files, val_files, prep_obj, FLAGS, model_cfg):
     '''
     Configures training and validation Spektral data loaders
     :param train_files: list of 'train' scan file paths
@@ -164,10 +164,10 @@ def configure_loaders(train_files, val_files, prep_obj, model_cfg, vox=False, do
     :return: training and validation Spektral data loaders
     '''
 
-    tr_ds = prep_dataset(train_files, prep_obj, verbose=True, vox=vox, downsampling=downsampling, augment=True)
+    tr_ds = prep_dataset(train_files, prep_obj, verbose=True, augment=FLAGS.augment)
     tr_loader = prep_loader(tr_ds, model_cfg)
 
-    va_ds = prep_dataset(val_files, prep_obj, verbose=True, vox=vox, downsampling=downsampling)
+    va_ds = prep_dataset(val_files, prep_obj, verbose=True)
     va_loader = prep_loader(va_ds, model_cfg)
 
     return tr_loader, va_loader
@@ -186,7 +186,7 @@ def train(FLAGS):
     model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
 
     model = network(model_cfg)
-    # model.summary()
+    save_summary(model)
     prep = Preprocess(model_cfg)
 
     tr_start_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
@@ -201,7 +201,6 @@ def train(FLAGS):
     class_ignore = model_cfg["class_ignore"]
     train_miou_obj = iouEval(num_classes, class_ignore)
     val_miou_obj = iouEval(num_classes, class_ignore)
-
 
     curr_batch = epoch = tr_loss = tr_miou = 0
     list_mious = [0.0]
@@ -223,30 +222,33 @@ def train(FLAGS):
 
         # Training data loader initialized
         tr_loader = update_loader(train_files, prep, dyn_idx, epoch, model_cfg,
-                                  block_len=dyn_count*10, vox=FLAGS.vox, downsampling=FLAGS.downsample)
+                                  FLAGS, block_len=dyn_count*10)
 
         print('     Preparing validation data loader..')
-        va_ds = prep_dataset(val_files, prep, verbose=True,
-                             vox=FLAGS.vox, downsampling=FLAGS.downsample)
+        va_ds = prep_dataset(val_files, prep, FLAGS, verbose=True)
         va_loader = prep_loader(va_ds, model_cfg)
 
     else:
 
         train_files, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg, count=200, shuffle=True)
 
-        tr_loader, va_loader = configure_loaders(train_files, val_files, prep, model_cfg,
-                                                 vox=FLAGS.vox, downsampling=FLAGS.downsample)
+        tr_loader, va_loader = configure_loaders(train_files, val_files, prep, FLAGS, model_cfg)
 
     print('----------------------------------------------------------------------------------')
     print('     TRAINING START...')
     print('----------------------------------------------------------------------------------')
 
-    lr_schedule = CyclicalLearningRate(
-        initial_learning_rate=model_cfg['learning_rate'],
-        maximal_learning_rate=model_cfg['learning_rate']*100,
-        step_size=tr_loader.steps_per_epoch,
-        scale_fn=lambda x: 1.,
-    )
+    # lr_schedule = CyclicalLearningRate(
+    #     initial_learning_rate=model_cfg['learning_rate'],
+    #     maximal_learning_rate=0.1,
+    #     step_size=tr_loader.steps_per_epoch,
+    #     scale_fn=lambda x: 1.,
+    # )
+    lr_schedule = ExponentialDecay(
+        model_cfg['learning_rate'],
+        decay_steps=model_cfg['lr_decay'],
+        decay_rate=0.96,
+        staircase=True)
     opt = Adam(learning_rate=lr_schedule)
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
     manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
@@ -321,13 +323,13 @@ def train(FLAGS):
             if FLAGS.dynamic and (int(epoch) % ep_int == 0):
                 dyn_idx += 1
                 tr_loader = update_loader(train_files, prep, dyn_idx, epoch,
-                                          model_cfg, verbose=True, vox=FLAGS.vox, downsampling=FLAGS.downsample)
+                                          model_cfg, FLAGS, verbose=True)
                 if tr_loader is None:
                     break
                 elif tr_loader == 'reset':
                     dyn_idx = 0
                     tr_loader = update_loader(train_files, prep, dyn_idx, epoch,
-                                              model_cfg, verbose=True, vox=FLAGS.vox, downsampling=FLAGS.downsample)
+                                              model_cfg, FLAGS, verbose=True)
 
             # Switch loss function to Lovàsz-Softmax if epoch reaches threshold (based on model cfg)
             if epoch == loss_switch_ep:
@@ -342,7 +344,7 @@ def train(FLAGS):
     print('----------------------------------------------------------------------------------')
 
     if FLAGS.save:
-        save_path = 'models/infer_v4_0_topkgcn_rgb_200_bs4_cce_lov'
+        save_path = 'models/infer_v3_7_resgcn7_xyzirgb_200_bs8_cce_lov_aug'
         model.save(save_path)
         print('     Model saved to {}'.format(save_path))
         print('==================================================================================')
