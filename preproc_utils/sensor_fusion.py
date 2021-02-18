@@ -58,18 +58,18 @@ class SensorFusion:
                 color_array_pts2d[i] = self.img[val_x, val_y] / 255
 
             # get lidar points corresponding to camera FOV and velodyne coordinates, color with mapped rgb values
-            imgfov_pc_velo = self.pc[inds, :]
-            pc_xyzrgbi = np.zeros((imgfov_pc_velo.shape[0], 7), dtype=np.float32)
-            pc_xyzrgbi[:, :4] = imgfov_pc_velo[:, :4]
-            pc_xyzrgbi[:, 4:7] = color_array_pts2d
-            labels_xyzrgbi = self.labels[inds]
+            # imgfov_pc_velo = self.pc[inds, :]
+            # pc_xyzrgbi = np.zeros((imgfov_pc_velo.shape[0], 7), dtype=np.float32)
+            # pc_xyzrgbi[:, :4] = imgfov_pc_velo[:, :4]
+            # pc_xyzrgbi[:, 4:7] = color_array_pts2d
+            # labels_xyzrgbi = self.labels[inds]
 
 
         except MemoryError:
             # Projection computation may induce memory exceptions
             return None, None
 
-        return pc_xyzrgbi, labels_xyzrgbi
+        return inds, color_array_pts2d
 
 
     def project_velo_to_cam2(self):
