@@ -6,7 +6,7 @@ from yaml import safe_load
 from sklearn.preprocessing import minmax_scale
 
 
-def read_bin_velodyne(pc_path):
+def read_bin_velodyne(pc_path, include_intensity=False):
     '''
     Reads velodyne binary file and converts it to a numpy.nd.array
     :param pc_path: SemanticKITTI binary scan file path
@@ -17,8 +17,12 @@ def read_bin_velodyne(pc_path):
         content = f.read()
         pc_iter = struct.iter_unpack('ffff', content)
         for idx, point in enumerate(pc_iter):
-            pc_list.append([point[0], point[1], point[2], point[3]])
+            if include_intensity:
+                pc_list.append([point[0], point[1], point[2], point[3]])
+            else:
+                pc_list.append([point[0], point[1], point[2]])
     return np.asarray(pc_list, dtype=np.float32)
+
 
 def load_label_kitti(label_path, remap_lut):
     '''
@@ -35,6 +39,7 @@ def load_label_kitti(label_path, remap_lut):
     sem_label = remap_lut[sem_label]
     return sem_label.astype(np.int32)
 
+
 def get_labels(label_path, config):
     '''
     Reads .label file obtains semantic point-wise labels
@@ -48,6 +53,7 @@ def get_labels(label_path, config):
     remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
     labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
     return labels
+
 
 def read_calib_file(filepath):
     '''
@@ -129,26 +135,32 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
     seq_list = np.sort(listdir(base_dir))
 
     model_dict = {'ep': tr_params['epochs'],
-               'num_classes': tr_params['num_classes'],
-               'patience': tr_params['es_patience'],
-               'batch_size': tr_params['batch_size'],
-               'l2_reg': tr_params['l2_reg'],
-               'n_node_features': tr_params['n_node_features'],
-               'learning_rate': tr_params['learning_rate'],
-               'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
-               'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
-               'tr_seq': list(seq_list[split_params['train']]),
-               'va_seq': list(seq_list[split_params['valid']]),
-               'te_seq': list(seq_list[split_params['test']]),
-               'class_ignore': semkitti_cfg["learning_ignore"],
-               'learning_map': semkitti_cfg["learning_map"],
-               'learning_map_inv': semkitti_cfg["learning_map_inv"],
-               'content': semkitti_cfg["content"],
-               'color_map': np.array(list(semkitti_cfg['color_map'].values()))/255,
-               'labels': semkitti_cfg["labels"]}
+                  'num_classes': tr_params['num_classes'],
+                  'patience': tr_params['es_patience'],
+                  'batch_size': tr_params['batch_size'],
+                  'l2_reg': tr_params['l2_reg'],
+                  'n_node_features': tr_params['n_node_features'],
+                  'learning_rate': tr_params['learning_rate'],
+                  'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
+                  'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
+                  'tr_seq': list(seq_list[split_params['train']]),
+                  'va_seq': list(seq_list[split_params['valid']]),
+                  'te_seq': list(seq_list[split_params['test']]),
+                  'class_ignore': semkitti_cfg["learning_ignore"],
+                  'learning_map': semkitti_cfg["learning_map"],
+                  'learning_map_inv': semkitti_cfg["learning_map_inv"],
+                  'content': semkitti_cfg["content"],
+                  'color_map': np.array(list(semkitti_cfg['color_map'].values())) / 255,
+                  'feature_spec': tr_params['feature_spec'],
+                  'labels': semkitti_cfg["labels"]}
 
     return model_dict
 
+def save_summary(model):
+    from contextlib import redirect_stdout
+    with open('models/summaries/' + model.name + '.txt', 'w') as f:
+        with redirect_stdout(f):
+            model.summary()
 
 def map_content(model_cfg):
     pc_content = model_cfg['content']
