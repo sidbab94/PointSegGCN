@@ -1,11 +1,14 @@
+dataset:
+  base_dir: 'D:/SemanticKITTI/dataset/sequences'
 
 training_params:
-  epochs: 250
-  batch_size: 1
+  epochs: 200
+  batch_size: 8
   num_classes: 20
-  learning_rate: 0.001
+  learning_rate: 0.01
   lr_decay_steps: 1000
   l2_reg: 0.001
   es_patience: 20
-  n_node_features: 8
+  n_node_features: 7
   lovasz_switch_ratio: 0.3
+  feature_spec: 'xyz_i_rgb'
