@@ -83,70 +83,6 @@ def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
         x, y, z = grid
         mlab.mesh(x, y, z, opacity=0.1, color=(0.1, 0.2, 0.3))
 
-def show_graph(pc, graph, show_voxel=False):
-    """
-    Display voxel containing graph (nodes, edges)
-
-    :param pc: point cloud array
-    :param graph: sparse adjacency matrix
-    :return:
-    """
-    point_size = 0.04#0.2
-    edge_size = 0.01
-    G = nx.from_scipy_sparse_matrix(graph)
-    # G = nx.from_numpy_array(graph)
-    G = nx.convert_node_labels_to_integers(G)
-    if pc.shape[1] > 5:
-        rgb = pc[:, 3:]
-        scalars = np.zeros((rgb.shape[0],))
-        for (kp_idx, kp_c) in enumerate(rgb):
-            scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
-        rgb_lut = create_8bit_rgb_lut()
-        pts = mlab.points3d(
-            pc[:, 0],
-            pc[:, 1],
-            pc[:, 2],
-            scalars,
-            scale_factor=point_size,
-            scale_mode="none",
-            resolution=20)
-    else:
-        scalars = np.array(list(G.nodes())) + 5
-        pts = mlab.points3d(
-            pc[:, 0],
-            pc[:, 1],
-            pc[:, 2],
-            scalars,
-            scale_factor=point_size,
-            scale_mode="none",
-            colormap="binary",
-            resolution=20)
-
-    pts.mlab_source.dataset.lines = np.array(list(G.edges()))
-    tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
-    mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
-
-    if pc.shape[1] > 6:
-        pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
-        pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
-        pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
-
-    pts.glyph.scale_mode = 'data_scaling_off'
-
-    if show_voxel:
-        xmin = np.min(pc[:, 0])
-        xmax = np.max(pc[:, 0])
-        ymin = np.min(pc[:, 1])
-        ymax = np.max(pc[:, 1])
-        zmin = np.min(pc[:, 2])
-        zmax = np.max(pc[:, 2])
-        pad = np.array(((xmax-xmin) * 0.01, (ymax-ymin) * 0.01, (zmax-zmin) * 0.01))
-        mlab_plt_cube(xmin - pad[0], xmax + pad[0],
-                      ymin - pad[1], ymax + pad[1],
-                      zmin - pad[2], zmax - pad[2])
-    mlab.show()
-
-
 
 class PC_Vis:
     """
@@ -200,10 +136,10 @@ class PC_Vis:
         pc.points = o3d.utility.Vector3dVector(pc_xyzrgbi[:, 0:3])
 
         if pc_xyzrgbi.shape[1] > 4:
-            if np.max(pc_xyzrgbi[:, 4:7]) > 20:  ## 0-255
-                pc.colors = o3d.utility.Vector3dVector(pc_xyzrgbi[:, 4:7] / 255.)
+            if np.max(pc_xyzrgbi[:, -3:]) > 20:  ## 0-255
+                pc.colors = o3d.utility.Vector3dVector(pc_xyzrgbi[:, -3:] / 255.)
             else:
-                pc.colors = o3d.utility.Vector3dVector(pc_xyzrgbi[:, 4:7])
+                pc.colors = o3d.utility.Vector3dVector(pc_xyzrgbi[:, -3:])
 
         if vis_test:
             o3d.visualization.draw_geometries([pc])
@@ -262,6 +198,59 @@ class PC_Vis:
 
         o3d.visualization.draw_geometries([pc])
 
+    @staticmethod
+    def draw_graph(pc, graph):
+        """
+        Display point cloud with graph (nodes, edges)
+
+        :param pc: point cloud array
+        :param graph: sparse adjacency matrix
+        :return:
+        """
+        point_size = 0.04  # 0.2
+        edge_size = 0.01
+        G = nx.from_scipy_sparse_matrix(graph)
+        # G = nx.from_numpy_array(graph)
+        G = nx.convert_node_labels_to_integers(G)
+        if pc.shape[1] > 5:
+            rgb = pc[:, 3:]
+            scalars = np.zeros((rgb.shape[0],))
+            for (kp_idx, kp_c) in enumerate(rgb):
+                scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
+            rgb_lut = create_8bit_rgb_lut()
+            pts = mlab.points3d(
+                pc[:, 0],
+                pc[:, 1],
+                pc[:, 2],
+                scalars,
+                scale_factor=point_size,
+                scale_mode="none",
+                resolution=20)
+        else:
+            scalars = np.array(list(G.nodes())) + 5
+            pts = mlab.points3d(
+                pc[:, 0],
+                pc[:, 1],
+                pc[:, 2],
+                scalars,
+                scale_factor=point_size,
+                scale_mode="none",
+                colormap="binary",
+                resolution=20)
+
+        pts.mlab_source.dataset.lines = np.array(list(G.edges()))
+        tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
+        mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+
+        if pc.shape[1] > 6:
+            pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
+            pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
+            pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
+
+        pts.glyph.scale_mode = 'data_scaling_off'
+
+        mlab.show()
+
 
 
 
@@ -276,4 +265,3 @@ if __name__ == '__main__':
     x, a, y = prep.assess_scan(sample)
 
     # PC_Vis.draw_pc(x, True)
-    show_graph(x, a, False)
