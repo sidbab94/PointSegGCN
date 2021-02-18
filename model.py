@@ -20,15 +20,16 @@ def conv_relu_bn(parents, filters, dropout=False, l2_reg=0.01):
     return x
 
 
-def Res_GCN_v1(model_cfg):
-    l2_reg = model_cfg['l2_reg']
-    F = model_cfg['n_node_features']
-    num_classes = model_cfg['num_classes']
+def Res_GCN_v1(tr_params):
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
 
-    levels = 3
+    levels = 2
 
     skips = []
 
@@ -36,20 +37,20 @@ def Res_GCN_v1(model_cfg):
     X_1 = x
 
     for i in range(levels):
-        x = conv_relu_bn((x, A_in), 32, True)
+        x = conv_relu_bn((x, A_in), 32, False)
         skips.append(x)
 
-    skips = reversed(skips[:-1])
+    skips = reversed(skips)
 
     for skip in skips:
-        x = conv_relu_bn((x, A_in), 32, True)
+        x = conv_relu_bn((x, A_in), 32, False)
         x = Concatenate()([x, skip])
 
     x = Concatenate()([x, X_1])
 
     output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
 
-    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v2')
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v1')
     return model
 
 
@@ -61,7 +62,6 @@ def gcs_block(parents, filters, dropout=False, l2_reg=0.01):
         x = Dropout(0.1)(x)
     return x
 
-
 def Res_GCN_v2(tr_params):
 
     l2_reg = tr_params['l2_reg']
@@ -70,33 +70,165 @@ def Res_GCN_v2(tr_params):
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
 
-    X_1 = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg), kernel_initializer='he_normal')([X_in, A_in])
+    levels = 3
 
-    X_2 = conv_relu_bn((X_1, A_in), 32, l2_reg=l2_reg)
+    skips = []
 
-    X_3 = conv_relu_bn((X_2, A_in), 64, l2_reg=l2_reg)
+    x = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    X_1 = x
 
-    X_4 = conv_relu_bn((X_3, A_in), 64, l2_reg=l2_reg)
+    for i in range(levels):
+        x = conv_relu_bn((x, A_in), 32, False)
+        skips.append(x)
 
-    X_5 = conv_relu_bn((X_4, A_in), 128, dropout=True, l2_reg=l2_reg)
+    skips = reversed(skips)
 
-    X_6 = conv_relu_bn((X_5, A_in), 64, dropout=True, l2_reg=l2_reg)
-    X_7 = Add(name='add_7_4')([X_6, X_4])
+    for skip in skips:
+        x = conv_relu_bn((x, A_in), 32, False)
+        x = Concatenate()([x, skip])
 
-    X_8 = conv_relu_bn((X_7, A_in), 64, dropout=True, l2_reg=l2_reg)
-    X_9 = Add(name='add_9_3')([X_8, X_3])
+    x = Concatenate()([x, X_1])
 
-    X_10 = conv_relu_bn((X_9, A_in), 32, dropout=True, l2_reg=l2_reg)
-    X_11 = Add(name='add_11_2')([X_10, X_2])
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
 
-    # output = GCNConv(num_classes, activation='softmax', name='gcn_output')([X_11, A_in])
-    output = Dense(num_classes, activation='softmax')(X_11)
-
-    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v4')
-
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v2')
     return model
 
+def Res_GCN_v7(tr_params):
+
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+
+    levels = 4
+
+    skips = []
+
+    x = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    X_1 = x
+
+    for i in range(levels):
+        x = conv_relu_bn((x, A_in), 32, False)
+        skips.append(x)
+
+    skips = reversed(skips)
+
+    for skip in skips:
+        x = conv_relu_bn((x, A_in), 32, False)
+        x = Concatenate()([x, skip])
+
+    x = Concatenate()([x, X_1])
+
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
+
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v7')
+    return model
+
+def Res_GCN_v6(tr_params):
+
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+
+    levels = 4
+
+    skips = []
+
+    x = GCNConv(64, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    X_1 = x
+
+    for i in range(levels):
+        x = conv_relu_bn((x, A_in), 64, False)
+        skips.append(x)
+
+    skips = reversed(skips)
+
+    for skip in skips:
+        x = conv_relu_bn((x, A_in), 64, False)
+        x = Concatenate()([x, skip])
+
+    x = Concatenate()([x, X_1])
+
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
+
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v6')
+    return model
+
+def Res_GCN_v4(tr_params):
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+
+    levels = 2
+
+    skips = []
+
+    x = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    X_1 = x
+
+    for i in range(levels):
+        x = conv_relu_bn((x, A_in), 32, False)
+        skips.append(x)
+
+    skips = reversed(skips)
+
+    for skip in skips:
+        x = conv_relu_bn((x, A_in), 32, False)
+        x = Add()([x, skip])
+
+    x = Add()([x, X_1])
+
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
+
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v4')
+    return model
+
+def Res_GCN_v5(tr_params):
+    l2_reg = tr_params['l2_reg']
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+
+    levels = 2
+
+    skips = []
+
+    x = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg))([X_in, A_in])
+    X_1 = x
+
+    for i in range(levels):
+        x = conv_relu_bn((x, A_in), 32, False)
+        skips.append(x)
+
+    skips = reversed(skips)
+
+    for skip in skips:
+        x = conv_relu_bn((x, A_in), 32, False)
+        x = Add()([x, skip])
+
+    x = Concatenate()([x, X_1])
+
+    output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
+
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v5')
+    return model
 
 def Res_GCN_v3(tr_params):
 
@@ -106,6 +238,7 @@ def Res_GCN_v3(tr_params):
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
 
     X_1 = GCNConv(32, activation='relu', kernel_regularizer=l2(l2_reg), kernel_initializer='he_normal')([X_in, A_in])
 
@@ -117,12 +250,12 @@ def Res_GCN_v3(tr_params):
 
     X_5 = Concatenate()([X_4, X_3, X_2, X_1])
 
-    X_6 = Dense(64, activation='relu', kernel_initializer='he_normal')(X_5)
+    # X_6 = Dense(64, activation='relu', kernel_initializer='he_normal')(X_5)
 
-    # output = GCNConv(num_classes, activation='softmax', name='gcn_output')([X_11, A_in])
-    output = Dense(num_classes, activation='softmax')(X_6)
+    output = GCNConv(num_classes, activation='softmax', name='gcn_output')([X_5, A_in])
+    # output = Dense(num_classes, activation='softmax')(X_6)
 
-    model = Model(inputs=[X_in, A_in], outputs=output, name='GraphSEG_v4')
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v3')
 
     return model
 
