@@ -11,12 +11,13 @@ class SensorFusion:
         img: RGB image array read from corresponding file path
     """
 
-    def __init__(self, pc, labels, calib, img):
+    def __init__(self, pc, labels, calib, img, get_rgb=False):
 
         self.pc = pc
         self.labels = labels
         self.calib = calib
         self.img = img
+        self.rgb_ret = get_rgb
 
     def render_lidar_rgb(self):
         '''
@@ -36,6 +37,7 @@ class SensorFusion:
 
         # projection matrix (project from velo2cam2)
         self.proj_mat = self.project_velo_to_cam2()
+        outputs = []
 
         # apply projection
         try:
@@ -46,30 +48,27 @@ class SensorFusion:
                             (pts_2d[1, :] < img_height) & (pts_2d[1, :] >= 0) &
                             (self.pc[:, 0] > 0)
                             )[0]
+            outputs.append(inds)
 
             # get 2d points corresponding to camera FOV and camera coordinates
             imgfov_pc_pixel = pts_2d[:, inds].transpose()
 
-            # get rgb array for projected 2d points based on nearest-pixel values on orignal image
-            color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype=np.float32)
-            for i in range(imgfov_pc_pixel.shape[0]):
-                y_coord, x_coord = imgfov_pc_pixel[i]
-                val_x, val_y = int(round(x_coord)) - 1, int(round(y_coord)) - 1
-                color_array_pts2d[i] = self.img[val_x, val_y] / 255
+            if self.rgb_ret:
+                # get rgb array for projected 2d points based on nearest-pixel values on orignal image
+                color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype=np.float32)
+                for i in range(imgfov_pc_pixel.shape[0]):
+                    y_coord, x_coord = imgfov_pc_pixel[i]
+                    val_x, val_y = int(round(x_coord)) - 1, int(round(y_coord)) - 1
+                    color_array_pts2d[i] = self.img[val_x, val_y] / 255
 
-            # get lidar points corresponding to camera FOV and velodyne coordinates, color with mapped rgb values
-            # imgfov_pc_velo = self.pc[inds, :]
-            # pc_xyzrgbi = np.zeros((imgfov_pc_velo.shape[0], 7), dtype=np.float32)
-            # pc_xyzrgbi[:, :4] = imgfov_pc_velo[:, :4]
-            # pc_xyzrgbi[:, 4:7] = color_array_pts2d
-            # labels_xyzrgbi = self.labels[inds]
+                outputs.append(color_array_pts2d)
 
-
+            return outputs
         except MemoryError:
             # Projection computation may induce memory exceptions
             return None, None
 
-        return inds, color_array_pts2d
+
 
 
     def project_velo_to_cam2(self):
