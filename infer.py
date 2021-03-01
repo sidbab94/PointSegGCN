@@ -11,7 +11,7 @@ from preprocess import *
 from time import time
 from train_utils.eval_metrics import iouEval
 from visualization import PC_Vis
-from model import Res_GCN_v3 as network
+from model import Res_GCN_v7 as network
 
 
 def test_all(FLAGS):
@@ -121,7 +121,8 @@ def test_single(FLAGS):
     if FLAGS.ckpt:
         loaded_model = network(model_cfg)
         latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
-        load_status = loaded_model.load_weights(latest_checkpoint)
+        # load_status = loaded_model.load_weights(latest_checkpoint)
+        load_status = loaded_model.load_weights('./ckpt_weights/2021-02-16--15.02.34')
         load_status.assert_consumed()
         print('Model deserialized and loaded from: ', latest_checkpoint)
     else:
@@ -143,12 +144,13 @@ def test_single(FLAGS):
     start = time()
     x, a, y = prep.assess_scan(test_file)
     a = sp_matrix_to_sp_tensor(a)
-    predictions = loaded_model.predict_step([x, a])
+    i = np.zeros_like(y)
+    predictions = loaded_model.predict_step([x, a, i])
     print('Elapsed: ', time() - start)
     pred_labels = np.argmax(predictions, axis=-1)
 
     map_iou(y, pred_labels, model_cfg)
 
     if FLAGS.vis:
-        PC_Vis.eval(pc=x, y_true=y, cfg=model_cfg, y_pred=pred_labels)
+        PC_Vis.eval(pc=x, y_true=y, cfg=model_cfg, y_pred=pred_labels, gt_colour=False)
 
