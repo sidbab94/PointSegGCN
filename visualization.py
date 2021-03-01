@@ -91,14 +91,17 @@ class PC_Vis:
     """
 
     @staticmethod
-    def eval(pc, y_true, cfg, y_pred=None):
+    def eval(pc, y_true, cfg, y_pred=None, gt_colour=False):
 
-        orig_pc_wlabels = PC_Vis.draw_pc_sem_ins(pc, y_true, cfg)
-        orig_pc_wlabels_obj = PC_Vis.draw_pc(orig_pc_wlabels)
+        orig_pc_wlabels = PC_Vis.draw_pc_labels(pc, y_true, cfg)
+        if gt_colour:
+            orig_pc_wlabels_obj = PC_Vis.draw_pc(pc)
+        else:
+            orig_pc_wlabels_obj = PC_Vis.draw_pc(orig_pc_wlabels)
 
         if y_pred is not None:
 
-            pred_pc_wlabels = PC_Vis.draw_pc_sem_ins(pc, y_pred, cfg)
+            pred_pc_wlabels = PC_Vis.draw_pc_labels(pc, y_pred, cfg)
             pred_pc_wlabels_obj = PC_Vis.draw_pc(pred_pc_wlabels)
 
             vis = o3d.visualization.Visualizer()
@@ -148,7 +151,7 @@ class PC_Vis:
             return pc
 
     @staticmethod
-    def draw_pc_sem_ins(pc_xyz, pc_sem_ins, cfg, vis_test=False):
+    def draw_pc_labels(pc_xyz, pc_sem_ins, cfg, vis_test=False):
 
         ins_colors = cfg['color_map']
 
@@ -207,13 +210,14 @@ class PC_Vis:
         :param graph: sparse adjacency matrix
         :return:
         """
-        point_size = 0.04  # 0.2
-        edge_size = 0.01
+        point_size = 0.07  # 0.2
+        edge_size = 0.007
         G = nx.from_scipy_sparse_matrix(graph)
         # G = nx.from_numpy_array(graph)
         G = nx.convert_node_labels_to_integers(G)
         if pc.shape[1] > 5:
-            rgb = pc[:, 3:]
+            rgb = pc[:, -3:] * 255
+            print(rgb)
             scalars = np.zeros((rgb.shape[0],))
             for (kp_idx, kp_c) in enumerate(rgb):
                 scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
@@ -242,7 +246,7 @@ class PC_Vis:
         tube = mlab.pipeline.tube(pts, tube_radius=edge_size)
         mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
 
-        if pc.shape[1] > 6:
+        if pc.shape[1] > 5:
             pts.module_manager.scalar_lut_manager.lut._vtk_obj.SetTableRange(0, rgb_lut.shape[0])
             pts.module_manager.scalar_lut_manager.lut.number_of_colors = rgb_lut.shape[0]
             pts.module_manager.scalar_lut_manager.lut.table = rgb_lut
