@@ -37,11 +37,10 @@ class Preprocess:
         self.scan_path = scan_path
 
         self.get_scan_data()
-        if 'rgb' in self.features:
-            self.get_modality()
+        self.get_modality()
         if 'd' in self.features:
             self.get_depth()
-            self.reduce_data()
+        self.reduce_data()
         self.prune_points()
         if aug_flag is False:
             self.get_graph()
@@ -67,22 +66,25 @@ class Preprocess:
         label_path = join('labels', scan_no + '.label')
         self.labels = get_labels(join(seq_path, label_path), self.cfg)
 
-        if 'rgb' in self.features:
-            calib_path = join(seq_path, 'calib.txt')
-            self.calib = read_calib_file(calib_path)
+        calib_path = join(seq_path, 'calib.txt')
+        self.calib = read_calib_file(calib_path)
 
-            self.img_path = join(seq_path, 'image_2', scan_no + '.png')
-            self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
+        self.img_path = join(seq_path, 'image_2', scan_no + '.png')
+        self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
 
     def get_modality(self):
         '''
         Run the SensorFusion pipeline on scan attributes, to obtain X,Y augmented with RGB information
         '''
-        proj = SensorFusion(self.pc, self.labels, self.calib, self.img)
-        cam_inds, rgb_array = proj.render_lidar_rgb()
+        proj = SensorFusion(self.pc, self.labels, self.calib, self.img, get_rgb='rgb' in self.features)
+        fused_outputs = proj.render_lidar_rgb()
+        cam_inds = fused_outputs[0]
         imgfov_pc_velo = self.pc[cam_inds, :]
-        self.pc = np.hstack((imgfov_pc_velo, rgb_array))
         self.labels = self.labels[cam_inds]
+        if 'rgb' in self.features:
+            self.pc = np.hstack((imgfov_pc_velo, fused_outputs[1]))
+        else:
+            self.pc = imgfov_pc_velo
 
         if not isinstance(cam_inds, np.ndarray):
             # boolean flag to recognize memory exception error, while computing projection matrices
@@ -118,9 +120,9 @@ class Preprocess:
         :return: None
         '''
         if 'xyz' in self.features:
-            valid_idx = np.where(self.pc[:, -1] < 35.0)
+            valid_idx = np.where(np.linalg.norm(self.pc[:, :3], axis=1) < 35.0)
         else:
-            valid_idx = np.where(self.pc[:, 0] < 35.0)
+            raise Exception('No XYZ data found while processing point cloud.')
         self.pc = self.pc[valid_idx[0], :]
         self.labels = self.labels[valid_idx[0]]
 
@@ -312,15 +314,19 @@ if __name__ == '__main__':
 
     prep = Preprocess(model_cfg)
 
-    x, y = prep.assess_scan(train_files[0], aug_flag=True)
-    aug = AugmentPC(inputs=(x, y), rot=True)
-    for i in aug.augmented:
-        X, Y = i
-        print(X[56:60, :])
-        A = compute_graph(X)
-        A = GCNConv.preprocess(A)
-        PC_Vis.draw_graph(X, A)
-        # PC_Vis.draw_pc(X, vis_test=True)
+    x, a, y = prep.assess_scan(train_files[95], aug_flag=False)
+    # print(x[:3, :])
+    # PC_Vis.draw_pc(x, True)
+    # PC_Vis.draw_pc_labels(x, y, model_cfg, vis_test=True)
+    PC_Vis.draw_graph(x, a)
+    # aug = AugmentPC(inputs=(x, y), rot=True)
+    # for i in aug.augmented:
+    #     X, Y = i
+    #     print(X[56:60, :])
+    #     A = compute_graph(X)
+    #     A = GCNConv.preprocess(A)
+    #     PC_Vis.draw_graph(X, A)
+    #     PC_Vis.draw_pc_labels(X, Y, model_cfg, vis_test=True)
 
     # dataset = prep_dataset(file_list, prep, True)
     # loader = prep_loader(dataset, model_cfg)
