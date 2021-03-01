@@ -344,7 +344,7 @@ def train(FLAGS):
     print('----------------------------------------------------------------------------------')
 
     if FLAGS.save:
-        save_path = 'models/infer_v3_7_resgcn7_xyzirgb_200_bs8_cce_lov_aug'
+        save_path = 'models/infer_v3_7_resgcn7_xyz_200_bs8_cce_lov_aug'
         model.save(save_path)
         print('     Model saved to {}'.format(save_path))
         print('==================================================================================')
