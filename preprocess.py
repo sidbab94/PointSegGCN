@@ -134,15 +134,6 @@ class Preprocess:
             self.pc = np.delete(self.pc, prune_idx, 0)
             self.labels = np.delete(self.labels, prune_idx, 0)
 
-    def rgb_to_scalar(self):
-        rgb = self.pc[:, -3:]
-        scalars = np.zeros((rgb.shape[0],), dtype='float32')
-        for (kp_idx, kp_c) in enumerate(rgb):
-            r, g, b = kp_c[0], kp_c[1], kp_c[2]
-            scalars[kp_idx] = 256 ** 2 * r + 256 * g + b
-        self.pc = np.column_stack((self.pc[:, 0], scalars))
-
-
 
 class BatchData(Dataset):
     """
