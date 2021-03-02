@@ -217,7 +217,6 @@ class PC_Vis:
         G = nx.convert_node_labels_to_integers(G)
         if pc.shape[1] > 5:
             rgb = pc[:, -3:] * 255
-            print(rgb)
             scalars = np.zeros((rgb.shape[0],))
             for (kp_idx, kp_c) in enumerate(rgb):
                 scalars[kp_idx] = rgb_2_scalar_idx(kp_c[0], kp_c[1], kp_c[2])
