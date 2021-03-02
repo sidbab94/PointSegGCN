@@ -129,7 +129,8 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
     '''
     semkitti_cfg = safe_load(open(dataset_cfg, 'r'))
     tr_params = safe_load(open(train_cfg, 'r'))['training_params']
-
+    cmap = np.array(list(semkitti_cfg['learning_class_colour_map'].values())) / 255.
+    cmap[:, [0, 2]] = cmap[:, [2, 0]]
     split_params = semkitti_cfg['split']
 
     seq_list = np.sort(listdir(base_dir))
@@ -150,7 +151,7 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                   'learning_map': semkitti_cfg["learning_map"],
                   'learning_map_inv': semkitti_cfg["learning_map_inv"],
                   'content': semkitti_cfg["content"],
-                  'color_map': np.array(list(semkitti_cfg['color_map'].values())) / 255,
+                  'color_map': cmap,
                   'feature_spec': tr_params['feature_spec'],
                   'labels': semkitti_cfg["labels"]}
 
