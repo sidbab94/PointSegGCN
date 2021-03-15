@@ -1,5 +1,5 @@
 import numpy as np
-
+from time import time
 class SensorFusion:
     """
     Fuses LiDAR geometric information with RGB modality, acquired from corresponding scan images.
@@ -41,6 +41,8 @@ class SensorFusion:
 
         # apply projection
         try:
+            start = time()
+
             pts_2d = self.project_to_image()
 
             # Filter lidar points to be within image FOV
@@ -51,16 +53,11 @@ class SensorFusion:
             outputs.append(inds)
 
             # get 2d points corresponding to camera FOV and camera coordinates
-            imgfov_pc_pixel = pts_2d[:, inds].transpose()
-
+            imgfov_pc_pixel = np.array(pts_2d[:, inds].transpose(), dtype=np.float16)
             if self.rgb_ret:
-                # get rgb array for projected 2d points based on nearest-pixel values on orignal image
-                color_array_pts2d = np.zeros((imgfov_pc_pixel.shape[0], 3), dtype=np.float32)
-                for i in range(imgfov_pc_pixel.shape[0]):
-                    y_coord, x_coord = imgfov_pc_pixel[i]
-                    val_x, val_y = int(round(x_coord)) - 1, int(round(y_coord)) - 1
-                    color_array_pts2d[i] = self.img[val_x, val_y] / 255
-
+                # get rgb array for projected 2d points based on nearest-pixel values on original image
+                rgb_coords = self.map_coord_rgb(imgfov_pc_pixel)
+                color_array_pts2d = self.img[rgb_coords[:, 0], rgb_coords[:, 1]] / 255
                 outputs.append(color_array_pts2d)
 
             return outputs
@@ -68,6 +65,11 @@ class SensorFusion:
             # Projection computation may induce memory exceptions
             return None, None
 
+    def map_coord_rgb(self, array):
+
+        rgb_coords = np.vstack((array[:, 1], array[:, 0])).transpose()
+        rgb_coords = rgb_coords.round() - 1
+        return rgb_coords.astype(int)
 
 
 
@@ -79,8 +81,8 @@ class SensorFusion:
         :return: projection matrix velodyne --> camera
         '''
 
-        P_velo2cam_ref = np.vstack((self.calib['Tr'].reshape(3, 4), np.array([0., 0., 0., 1.])))  # velo2ref_cam
-        R_ref2rect = np.eye(4)
+        P_velo2cam_ref = np.vstack((self.calib['Tr'].reshape(3, 4), np.array([0., 0., 0., 1.], dtype=np.float16)))  # velo2ref_cam
+        R_ref2rect = np.eye(4, dtype=np.float16)
 
         P_rect2cam2 = self.calib['P2'].reshape((3, 4))
         proj_mat = P_rect2cam2 @ R_ref2rect @ P_velo2cam_ref
@@ -94,14 +96,13 @@ class SensorFusion:
         :return:
         '''
 
-        points = self.pc[:, :3].transpose()
+        points = np.array(self.pc[:, :3].transpose(), dtype=np.float16)
         num_pts = points.shape[1]
 
         # Change to homogenous coordinate
-        points = np.vstack((points, np.ones((1, num_pts))))
+        points = np.vstack((points, np.ones((1, num_pts)))).astype(np.float16)
         points = self.proj_mat @ points
         points[:2, :] /= points[2, :]
-
         return points[:2, :]
 
 
