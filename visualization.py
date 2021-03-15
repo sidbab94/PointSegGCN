@@ -210,8 +210,8 @@ class PC_Vis:
         :param graph: sparse adjacency matrix
         :return:
         """
-        point_size = 0.07  # 0.2
-        edge_size = 0.007
+        point_size = 0.09  # 0.2
+        edge_size = 0.025
         G = nx.from_scipy_sparse_matrix(graph)
         # G = nx.from_numpy_array(graph)
         G = nx.convert_node_labels_to_integers(G)
