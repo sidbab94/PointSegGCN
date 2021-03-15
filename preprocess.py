@@ -5,7 +5,7 @@ from spektral.data import Dataset, Graph, DisjointLoader
 
 from preproc_utils.readers import *
 from preproc_utils.sensor_fusion import SensorFusion
-from preproc_utils.graph_gen import compute_adjacency as compute_graph
+from preproc_utils.graph_gen import compute_adjacency as compute_graph, normalize_A
 
 
 class Preprocess:
@@ -35,13 +35,11 @@ class Preprocess:
         '''
 
         self.scan_path = scan_path
-
         self.get_scan_data()
         self.get_modality()
         if 'd' in self.features:
             self.get_depth()
         self.reduce_data()
-        # self.prune_points()
         if aug_flag is False:
             self.get_graph()
             return self.pc, self.A, self.labels
@@ -97,10 +95,12 @@ class Preprocess:
         '''
         if not self.invalid_scan:
             self.A = compute_graph(self.pc)
+            self.A = normalize_A(self.A)
             # self.A = GCNConv.preprocess(self.A)
             # self.A = sp_matrix_to_sp_tensor(self.A)
         else:
             self.A = None
+
 
     def get_depth(self):
 
@@ -305,7 +305,9 @@ if __name__ == '__main__':
 
     prep = Preprocess(model_cfg)
 
+    start = time()
     x, a, y = prep.assess_scan(train_files[95], aug_flag=False)
-    # PC_Vis.draw_pc(x, True)
-    PC_Vis.draw_graph(x, a)
+    print(time() - start)
+    PC_Vis.draw_pc(x, True)
+    # PC_Vis.draw_graph(x, a)
     # PC_Vis.draw_pc_labels(x, y, model_cfg, vis_test=True)
