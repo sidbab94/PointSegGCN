@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph, kneighbors_graph
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import csr_matrix, spdiags
 
 def color_mask(dist_adj, labels):
     '''
@@ -79,13 +79,22 @@ def compute_adjacency(points, nn=5, labels=None):
     I = np.arange(0, M).repeat(k)
     J = idx.reshape(M*k)
     V = dist.reshape(M*k)
-    W = csr_matrix((V, (I, J)), shape=(M, M))
+    A = csr_matrix((V, (I, J)), shape=(M, M))
 
     # Final assertion checks
-    assert W.nnz % 2 == 0
-    assert type(W) is csr_matrix
+    # assert A.nnz % 2 == 0
+    assert type(A) is csr_matrix
 
-    return W
+    return A
+
+def normalize_A(a):
+
+    n, m = a.shape
+    diags = a.sum(axis=1).flatten()
+    D = spdiags(diags, [0], m, n, format="csr")
+    D = D.power(-0.5)
+    L = D.dot(a).dot(D)
+    return L
 
 if __name__ == '__main__':
     from visualization import PC_Vis
