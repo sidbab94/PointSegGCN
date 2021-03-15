@@ -41,7 +41,7 @@ class Preprocess:
         if 'd' in self.features:
             self.get_depth()
         self.reduce_data()
-        self.prune_points()
+        # self.prune_points()
         if aug_flag is False:
             self.get_graph()
             return self.pc, self.A, self.labels
@@ -97,7 +97,7 @@ class Preprocess:
         '''
         if not self.invalid_scan:
             self.A = compute_graph(self.pc)
-            self.A = GCNConv.preprocess(self.A)
+            # self.A = GCNConv.preprocess(self.A)
             # self.A = sp_matrix_to_sp_tensor(self.A)
         else:
             self.A = None
@@ -306,29 +306,6 @@ if __name__ == '__main__':
     prep = Preprocess(model_cfg)
 
     x, a, y = prep.assess_scan(train_files[95], aug_flag=False)
-    # print(x[:3, :])
     # PC_Vis.draw_pc(x, True)
-    # PC_Vis.draw_pc_labels(x, y, model_cfg, vis_test=True)
     PC_Vis.draw_graph(x, a)
-    # aug = AugmentPC(inputs=(x, y), rot=True)
-    # for i in aug.augmented:
-    #     X, Y = i
-    #     print(X[56:60, :])
-    #     A = compute_graph(X)
-    #     A = GCNConv.preprocess(A)
-    #     PC_Vis.draw_graph(X, A)
-    #     PC_Vis.draw_pc_labels(X, Y, model_cfg, vis_test=True)
-
-    # dataset = prep_dataset(file_list, prep, True)
-    # loader = prep_loader(dataset, model_cfg)
-    # i = 0
-    # for batch in loader:
-    #     inputs, target = batch
-    #     X, A, _ = inputs
-    #     print(X[56:60, :])
-    #     Y = target
-    #     i += 1
-    #     # PC_Vis.draw_pc(X, vis_test=True)
-    #     if i == 5:
-    #         break
-
+    # PC_Vis.draw_pc_labels(x, y, model_cfg, vis_test=True)
