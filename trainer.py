@@ -11,7 +11,7 @@ from train_utils import loss_metrics
 from train_utils.eval_metrics import iouEval
 
 from preprocess import *
-from model import Res_GCN_v7 as network
+from model import Res_GCN_nat as network
 
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
@@ -230,7 +230,7 @@ def train(FLAGS):
 
     else:
 
-        train_files, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg, count=200, shuffle=True)
+        train_files, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg, count=2, shuffle=True)
 
         tr_loader, va_loader = configure_loaders(train_files, val_files, prep, FLAGS, model_cfg)
 
