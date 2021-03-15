@@ -8,7 +8,7 @@ from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Concaten
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
 from spektral.layers import GCNConv, GlobalMaxPool, MinCutPool, GCSConv, EdgeConv, TopKPool
-from train_utils.tf_utils import unPool
+from train_utils.tf_utils import unPool, GConv
 
 
 def conv_relu_bn(parents, filters, dropout=False, l2_reg=0.01):
@@ -51,6 +51,38 @@ def Res_GCN_v7(tr_params):
 
     output = GCNConv(num_classes, activation='softmax', name='gcn_6')([x, A_in])
 
+    model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v7')
+    return model
+
+def Res_GCN_nat(tr_params):
+
+    F = tr_params['n_node_features']
+    num_classes = tr_params['num_classes']
+
+    X_in = Input(shape=(F,), name='X_in')
+    A_in = Input(shape=(None,), sparse=True)
+    I_in = Input(shape=(), name="segment_ids_in", dtype=tf.int32)
+
+    levels = 4
+
+    skips = []
+
+    x = GConv(32)([X_in, A_in])
+    X_1 = x
+
+    for i in range(levels):
+        x = GConv(32)([x, A_in])
+        skips.append(x)
+
+    skips = reversed(skips)
+
+    for skip in skips:
+        x = GConv(32)([x, A_in])
+        x = Concatenate()([x, skip])
+
+    x = Concatenate()([x, X_1])
+
+    output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
     model = Model(inputs=[X_in, A_in, I_in], outputs=output, name='Res_GCN_v7')
     return model
 
