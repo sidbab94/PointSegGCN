@@ -21,7 +21,7 @@ def read_bin_velodyne(pc_path, include_intensity=False):
                 pc_list.append([point[0], point[1], point[2], point[3]])
             else:
                 pc_list.append([point[0], point[1], point[2]])
-    return np.asarray(pc_list, dtype=np.float32)
+    return np.asarray(pc_list, dtype=np.float16)
 
 
 def load_label_kitti(label_path, remap_lut):
@@ -31,13 +31,13 @@ def load_label_kitti(label_path, remap_lut):
     :param remap_lut: look-up table based on the SemanticKITTI learning_map
     :return: point-wise ground truth label array
     '''
-    label = np.fromfile(label_path, dtype=np.uint32)
+    label = np.fromfile(label_path, dtype=int)
     label = label.reshape((-1))
     sem_label = label & 0xFFFF  # semantic label in lower half
     inst_label = label >> 16  # instance id in upper half
     assert ((sem_label + (inst_label << 16) == label).all())
     sem_label = remap_lut[sem_label]
-    return sem_label.astype(np.int32)
+    return sem_label.astype(np.int8)
 
 
 def get_labels(label_path, config):
@@ -49,7 +49,7 @@ def get_labels(label_path, config):
     '''
     remap_dict_val = config["learning_map"]
     max_key = max(remap_dict_val.keys())
-    remap_lut_val = np.zeros((max_key + 100), dtype=np.int32)
+    remap_lut_val = np.zeros((max_key + 100), dtype=np.int8)
     remap_lut_val[list(remap_dict_val.keys())] = list(remap_dict_val.values())
     labels = load_label_kitti(label_path, remap_lut=remap_lut_val)
     return labels
@@ -71,7 +71,7 @@ def read_calib_file(filepath):
             # The only non-float values in these files are dates, which
             # we don't care about anyway
             try:
-                data[key] = np.array([float(x) for x in value.split()])
+                data[key] = np.array([float(x) for x in value.split()], dtype=np.float16)
             except ValueError:
                 pass
     return data
