@@ -79,28 +79,16 @@ def compute_adjacency(points, nn=5, labels=None):
     I = np.arange(0, M).repeat(k)
     J = idx.reshape(M*k)
     V = dist.reshape(M*k)
-    W = coo_matrix((V, (I, J)), shape=(M, M))
-    # No self-loops, remove diagonal non-zero elements
-    W.setdiag(0)
-
-    # Non-directed graph.
-    bigger = W.T > W
-    W = W - W.multiply(bigger) + W.T.multiply(bigger)
+    W = csr_matrix((V, (I, J)), shape=(M, M))
 
     # Final assertion checks
     assert W.nnz % 2 == 0
-    assert np.abs(W - W.T).mean() < 1e-10
     assert type(W) is csr_matrix
 
-    if labels != None:
-        # Modify wrt node colour information
-        W = color_mask(W, labels)
-
     return W
-    # print(type(W), W.shape)
 
 if __name__ == '__main__':
-    from visualization import show_graph
+    from visualization import PC_Vis
 
     from preprocess import *
     from time import time
@@ -112,14 +100,4 @@ if __name__ == '__main__':
     prep = Preprocess(model_cfg)
     x, a, y = prep.assess_scan(sample)
 
-    # tic = time()
-    # A = balltree_graph(x, radius=0.3)
-    # print(type(A))
-    # print(time() - tic)
-
-    tic = time()
-    A = sklearn_graph(x, nn=5)
-    print(type(A))
-    print(time() - tic)
-    show_graph(x, A)
-    # mlab.show()
+    PC_Vis.draw_graph(x, a)
