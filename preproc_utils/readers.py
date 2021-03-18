@@ -135,7 +135,7 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
 
     seq_list = np.sort(listdir(base_dir))
 
-    model_dict = {'ep': tr_params['epochs'],
+    model_dict = {'epochs': tr_params['epochs'],
                   'num_classes': tr_params['num_classes'],
                   'patience': tr_params['es_patience'],
                   'batch_size': tr_params['batch_size'],
