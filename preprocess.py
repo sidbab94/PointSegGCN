@@ -1,8 +1,9 @@
 from pathlib import PurePath
 import cv2
-from spektral.layers import GCNConv
-from spektral.data import Dataset, Graph, DisjointLoader
-
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+from tensorflow import sparse, SparseTensor
+from scipy import sparse as sp
 from preproc_utils.readers import *
 from preproc_utils.sensor_fusion import SensorFusion
 from preproc_utils.graph_gen import compute_adjacency as compute_graph, normalize_A
@@ -27,7 +28,7 @@ class Preprocess:
         self.features = self.cfg['feature_spec'].split('_')
         self.feat_len = sum(c for c in [len(i) for i in self.features])
 
-    def assess_scan(self, scan_path, aug_flag=False):
+    def assess_scan(self, scan_path):
         '''
         Scan path is processed from start to end, all necessary training inputs obtained
         :param scan_path: file path containing velodyne point cloud (.bin)
@@ -40,11 +41,9 @@ class Preprocess:
         if 'd' in self.features:
             self.get_depth()
         self.reduce_data()
-        if aug_flag is False:
-            self.get_graph()
-            return self.pc, self.A, self.labels
-        else:
-            return self.pc, self.labels
+
+        self.get_graph()
+        return self.pc, self.A, self.labels
 
     def get_scan_data(self):
         '''
@@ -94,10 +93,8 @@ class Preprocess:
         A is also preprocessed (normalization) for Graph Convolution operations
         '''
         if not self.invalid_scan:
-            self.A = compute_graph(self.pc)
+            self.A = compute_graph(self.pc, nn=10)
             self.A = normalize_A(self.A)
-            # self.A = GCNConv.preprocess(self.A)
-            # self.A = sp_matrix_to_sp_tensor(self.A)
         else:
             self.A = None
 
@@ -111,7 +108,6 @@ class Preprocess:
             self.pc = np.delete(self.pc, np.s_[:3], axis=1)
             self.pc = np.insert(self.pc, 0, depth, axis=1)
 
-        # assert self.pc.shape[1] == self.feat_len
 
     def reduce_data(self):
         '''
@@ -126,170 +122,46 @@ class Preprocess:
         self.pc = self.pc[valid_idx[0], :]
         self.labels = self.labels[valid_idx[0]]
 
-    def prune_points(self):
 
-        N = self.pc.shape[0]
-        if N % 4 != 0:
-            prune_idx = np.random.choice(N, N % 4, replace=False)
-            self.pc = np.delete(self.pc, prune_idx, 0)
-            self.labels = np.delete(self.labels, prune_idx, 0)
+def rot_augment_pc(x, bs, angle=90, axis='z'):
+    aug_x = []
+    rot_mask = np.linspace(0.0, 3.0, bs)
+    rads = np.array(np.radians(rot_mask * angle))
+    for i in range(len(rot_mask)):
+        rot = get_rot_matrix(axis, rads[i])
+        rotated = rot @ x[:, :3].T
+        rot_pc = np.hstack((rotated.T, x[:, 3:]))
+        aug_x.append(rot_pc)
+    return np.vstack(aug_x)
 
+def get_rot_matrix(axis, rads):
 
-class BatchData(Dataset):
-    """
-    Generates a Spektral dataset from file-list provided, using the Preprocess() pipeline
-    More info: https://graphneural.network/creating-dataset/
+    cosa = np.cos(rads)
+    sina = np.sin(rads)
 
-    Arguments:
-        file_list: list of velodyne scan paths to process
-        prep_obj: preprocessor object
-    """
-
-    def __init__(self, file_list, prep_obj, augment=False, verbose=False):
-
-        self.file_list = file_list
-        self.prep = prep_obj
-        self.augment = augment
-        self.vv = verbose
-        super().__init__()
-
-    def read(self):
-
-        output = []
-        for file in self.file_list:
-
-            if self.vv:
-                print('     Processing : ', file)
-
-            if self.augment:
-                x, y = self.prep.assess_scan(file, aug_flag=True)
-                aug_obj = AugmentPC((x, y), rot=True, downsample=False)
-                for i in aug_obj.augmented:
-                    X, Y = i
-                    A = compute_graph(X)
-                    A = GCNConv.preprocess(A)
-                    output.append(Graph(x=X, a=A, y=Y))
-            else:
-                x, a, y = self.prep.assess_scan(file)
-                if a is None:
-                    print('Numpy Memory Error, skipping current scan: ', file)
-                    continue
-                output.append(Graph(x=x, a=a, y=y))
-
-        return output
+    if axis == 'x':
+        return np.array([[1, 0, 0], [0, cosa, sina], [0, -sina, cosa]])
+    elif axis == 'y':
+        return np.array([[cosa, 0, -sina], [0, 1, 0], [sina, 0, cosa]])
+    elif axis == 'z':
+        return np.array([[cosa, sina, 0], [-sina, cosa, 0], [0, 0, 1]])
+    else:
+        raise Exception('Invalid axis provided')
 
 
-class AugmentPC:
-    """
-    Augmentation of point cloud by means of rotation about a provided axis,
-    as well as optional down-sampling at different ratios.
+def generate_batch(prep, file, bs=4):
 
-    Arguments:
-        inputs: processed scan inputs --> x,y ('a' computed separately for each augmented sample)
-        rot: boolean flag to enable rotation
-        angle: rotation angle in degrees
-        axis: axis to rotate about
-        downsample: adds down-sampled versions of point cloud to augmented list
-        ds_ratio: number of required output samples from down-sampling process
-
-    """
-    def __init__(self, inputs, rot=False, angle=45,
-                 axis='z', downsample=False, ds_ratio=5):
-
-        self.pc, self.labels = inputs
-        self.augmented = []
-        if rot:
-            self.rotate_pc(axis, angle)
-        if downsample:
-            self.downsample(ds_ratio)
-
-    def rotate_pc(self, axis, angle):
-        rot_mask = np.arange(-1.0, 1.4, 0.4)
-        for i in range(len(rot_mask)):
-            x = self.pc
-
-            rads = np.radians(rot_mask[i] * angle)
-            rot = self.get_rot_matrix(axis, rads)
-
-            rotated = rot @ x[:, :3].T
-            new_pc = np.hstack((rotated.T, x[:, 3:]))
-            self.augmented.append([new_pc, self.labels])
-
-    def get_rot_matrix(self, axis, rads):
-
-        cosa = np.cos(rads)
-        sina = np.sin(rads)
-
-        if axis == 'x':
-            return np.array([[1, 0, 0], [0, cosa, sina], [0, -sina, cosa]])
-        elif axis == 'y':
-            return np.array([[cosa, 0, -sina], [0, 1, 0], [sina, 0, cosa]])
-        elif axis == 'z':
-            return np.array([[cosa, sina, 0], [-sina, cosa, 0], [0, 0, 1]])
-        else:
-            raise Exception('Invalid axis provided')
-
-    def downsample(self, ds_ratio):
-
-        # initialize random generator w/ seed
-        rng = np.random.default_rng(seed=123)
-
-        for j in range(len(self.augmented)):
-
-            pc, _, _, = self.augmented[j]
-            N = pc.shape[0]
-
-            # sample size (floored)
-            valid_ss = N // ds_ratio
-            # final sample size with surplus
-            rem_ss = N - (valid_ss * ds_ratio)
-            # point indices of original point cloud
-            glo_ind = np.arange(N)
-
-            for i in range(ds_ratio):
-
-                if i == ds_ratio - 1:
-                    valid_ss += rem_ss
-
-                curr_ind = rng.choice(glo_ind, valid_ss, replace=True)
-                # prune point indices wrt indices already sampled --> mutual exclusion of samples
-                del_ind = np.nonzero(np.isin(glo_ind, curr_ind))
-                glo_ind = np.delete(glo_ind, del_ind)
-
-                self.augmented.append([pc[curr_ind, :], self.a[curr_ind][:, curr_ind], self.labels[curr_ind]])
-
-
-def prep_dataset(file_list, prep_obj, augment=False, verbose=False):
-    '''
-    Run BatchData pipeline on list of scan files
-    :param file_list: list of velodyne scan paths to process
-    :param prep_obj: preprocessor object
-    :param verbose: print out progress in terminal
-    :return: Spektral dataset
-    '''
-
-    dataset = BatchData(file_list, prep_obj, augment, verbose)
-
-    return dataset
-
-
-def prep_loader(dataset, model_cfg):
-    '''
-    Configure a Spektral dataset Disjoint Loader for batch-wise data feed into train/eval loop.
-    A Disjoint loader produces a batch of graphs from the dataset via their disjoint union.
-    More info: https://graphneural.network/loaders/#disjointloader
-
-    :param dataset: Spektral dataset to process
-    :param model_cfg: model configuration dictionary
-    :return: Spektral Disjoint
-    '''
-
-    batch_size = model_cfg['batch_size']
-    epochs = model_cfg['ep']
-
-    return DisjointLoader(dataset, batch_size=batch_size, epochs=epochs, shuffle=True)
-
-
+    x, a, y = prep.assess_scan(file)
+    if bs != 'valid':
+        x = rot_augment_pc(x, bs)
+        y = np.tile(y, bs)
+        a = sp.block_diag([a] * bs)
+    row, col, values = sp.find(a)
+    out = SparseTensor(
+        indices=np.array([row, col]).T, values=values, dense_shape=a.shape
+    )
+    a = sparse.reorder(out)
+    return x, a, y
 
 
 if __name__ == '__main__':
