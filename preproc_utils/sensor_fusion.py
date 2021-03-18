@@ -1,4 +1,5 @@
 import numpy as np
+np.seterr(all='ignore')
 from time import time
 class SensorFusion:
     """
