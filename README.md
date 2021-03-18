@@ -55,4 +55,5 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 
 | Date | Network | mIoU | Avg. Inference Time (s)
 | ------------ | ------------ | ------------- | -------------
-| 13.01.2021 | [Res_GCN_v1](Res_GCN_v1_summary.txt) | 14.45 | 0.742
+| 13.01.2021 | [U-GCN4](models/summaries/U-GCN4.txt) | 14.45 | 0.742
+| 18.03.2021 | [Deep_GCN](models/summaries/Dense_GCN.txt) | 18.96 | 0.768
