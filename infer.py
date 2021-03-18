@@ -1,6 +1,5 @@
 import os
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from pathlib import Path
 import random
 import tensorflow as tf
@@ -11,7 +10,7 @@ from preprocess import *
 from time import time
 from train_utils.eval_metrics import iouEval
 from visualization import PC_Vis
-from model import Res_GCN_v7 as network
+from model import Dense_GCN as network
 
 
 def test_all(FLAGS):
@@ -51,8 +50,7 @@ def test_all(FLAGS):
     for file in val_files:
         print('Processing: ', file)
         start = time()
-        x, a, y = prep.assess_scan(file)
-        a = sp_matrix_to_sp_tensor(a)
+        x, a, y = generate_batch(prep, file, 'valid')
         predictions = loaded_model.predict_step([x, a])
         inf_times.append(time() - start)
         pred_labels = np.argmax(predictions, axis=-1)
@@ -121,8 +119,8 @@ def test_single(FLAGS):
     if FLAGS.ckpt:
         loaded_model = network(model_cfg)
         latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
-        # load_status = loaded_model.load_weights(latest_checkpoint)
-        load_status = loaded_model.load_weights('./ckpt_weights/2021-02-16--15.02.34')
+        load_status = loaded_model.load_weights(latest_checkpoint)
+        # load_status = loaded_model.load_weights('./ckpt_weights/2021-02-16--15.02.34')
         load_status.assert_consumed()
         print('Model deserialized and loaded from: ', latest_checkpoint)
     else:
@@ -144,8 +142,8 @@ def test_single(FLAGS):
     start = time()
     x, a, y = prep.assess_scan(test_file)
     a = sp_matrix_to_sp_tensor(a)
-    i = np.zeros_like(y)
-    predictions = loaded_model.predict_step([x, a, i])
+    # i = np.zeros_like(y)
+    predictions = loaded_model.predict_step([x, a])#, i])
     print('Elapsed: ', time() - start)
     pred_labels = np.argmax(predictions, axis=-1)
 
