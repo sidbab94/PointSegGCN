@@ -29,9 +29,6 @@ if __name__ == '__main__':
     training = subparsers.add_parser('training', help='Proceed to training')
     training.add_argument('--ckpt', default=False, action='store_true',
                           help='Load from latest checkpoint to continue training, default: False')
-    training.add_argument('--dynamic', default=False, action='store_true',
-                          help='Enable dynamic loading of data - change dataset every few epochs. Useful when entire'
-                               'dataset cannot be loaded onto memory/batch-loader')
     training.add_argument('--trial', default=False, action='store_true',
                           help='Enable TRIAL mode, for experimental training with smaller dataset splits')
     training.add_argument('--augment', default=False, action='store_true',
@@ -52,6 +49,8 @@ if __name__ == '__main__':
                            help='Enable visualization of single scan inferences')
     inference.add_argument('--ckpt', default=False, action='store_true',
                            help='Load model from latest checkpoint weights')
+    inference.add_argument('--testds', default=False, action='store_true',
+                           help='Perform inference on file from test split')
 
     FLAGS = parser.parse_args()
 
