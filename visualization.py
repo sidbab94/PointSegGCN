@@ -12,11 +12,12 @@ def create_8bit_rgb_lut():
     :return: Look-Up Table as 256**3 x 4 array
     """
     xl = np.mgrid[0:256, 0:256, 0:256]
-    lut = np.vstack((xl[0].reshape(1, 256**3),
-                        xl[1].reshape(1, 256**3),
-                        xl[2].reshape(1, 256**3),
-                        255 * np.ones((1, 256**3)))).T
+    lut = np.vstack((xl[0].reshape(1, 256 ** 3),
+                     xl[1].reshape(1, 256 ** 3),
+                     xl[2].reshape(1, 256 ** 3),
+                     255 * np.ones((1, 256 ** 3)))).T
     return lut.astype('int32')
+
 
 def rgb_2_scalar_idx(r, g, b):
     """
@@ -26,7 +27,8 @@ def rgb_2_scalar_idx(r, g, b):
     :param b: Blue value
     :return: scalar index of input colour
     """
-    return 256**2 *r + 256 * g + b
+    return 256 ** 2 * r + 256 * g + b
+
 
 def cube_faces(xmin, xmax, ymin, ymax, zmin, zmax):
     """
@@ -68,6 +70,7 @@ def cube_faces(xmin, xmax, ymin, ymax, zmin, zmax):
 
     return faces
 
+
 def mlab_plt_cube(xmin, xmax, ymin, ymax, zmin, zmax):
     """
     Draws voxel mesh on Mayavi window
@@ -93,45 +96,68 @@ class PC_Vis:
     @staticmethod
     def eval(pc, y_true, cfg, y_pred=None, gt_colour=False):
 
-        orig_pc_wlabels = PC_Vis.draw_pc_labels(pc, y_true, cfg)
-        if gt_colour:
-            orig_pc_wlabels_obj = PC_Vis.draw_pc(pc)
-        else:
-            orig_pc_wlabels_obj = PC_Vis.draw_pc(orig_pc_wlabels)
-
-        if y_pred is not None:
+        if y_true is None:
 
             pred_pc_wlabels = PC_Vis.draw_pc_labels(pc, y_pred, cfg)
             pred_pc_wlabels_obj = PC_Vis.draw_pc(pred_pc_wlabels)
 
-            vis = o3d.visualization.Visualizer()
-            vis.create_window(window_name='Ground Truth', width=960, height=985, left=0, top=40)
-            vis.add_geometry(orig_pc_wlabels_obj)
-
             vis2 = o3d.visualization.Visualizer()
-            vis2.create_window(window_name='Predicted', width=960, height=985, left=960, top=40)
+            vis2.create_window(window_name='Predicted')
             vis2.add_geometry(pred_pc_wlabels_obj)
 
-        else:
-
-            vis = o3d.visualization.Visualizer()
-            vis.create_window(window_name='Ground Truth')
-            vis.add_geometry(orig_pc_wlabels_obj)
-
-        while True:
-            if not vis.poll_events():
-                break
-            vis.update_renderer()
-
-            if y_pred is not None:
+            while True:
                 if not vis2.poll_events():
                     break
                 vis2.update_renderer()
 
-        vis.destroy_window()
-        if y_pred is not None:
             vis2.destroy_window()
 
+        else:
+
+            orig_pc_wlabels = PC_Vis.draw_pc_labels(pc, y_true, cfg)
+            if gt_colour:
+                orig_pc_wlabels_obj = PC_Vis.draw_pc(pc)
+            else:
+                orig_pc_wlabels_obj = PC_Vis.draw_pc(orig_pc_wlabels)
+
+            if y_pred is None:
+
+                vis = o3d.visualization.Visualizer()
+                vis.create_window(window_name='Ground Truth')
+                vis.add_geometry(orig_pc_wlabels_obj)
+
+                while True:
+                    if not vis.poll_events():
+                        break
+                    vis.update_renderer()
+
+                vis.destroy_window()
+
+            else:
+
+                pred_pc_wlabels = PC_Vis.draw_pc_labels(pc, y_pred, cfg)
+                pred_pc_wlabels_obj = PC_Vis.draw_pc(pred_pc_wlabels)
+
+                vis = o3d.visualization.Visualizer()
+                vis.create_window(window_name='Ground Truth', width=960, height=985, left=0, top=40)
+                vis.add_geometry(orig_pc_wlabels_obj)
+
+                vis2 = o3d.visualization.Visualizer()
+                vis2.create_window(window_name='Predicted', width=960, height=985, left=960, top=40)
+                vis2.add_geometry(pred_pc_wlabels_obj)
+
+                while True:
+                    if not vis.poll_events():
+                        break
+                    vis.update_renderer()
+
+                    if y_pred is not None:
+                        if not vis2.poll_events():
+                            break
+                        vis2.update_renderer()
+
+                vis.destroy_window()
+                vis2.destroy_window()
 
     @staticmethod
     def draw_pc(pc_xyzrgbi, vis_test=False):
@@ -253,8 +279,6 @@ class PC_Vis:
         pts.glyph.scale_mode = 'data_scaling_off'
 
         mlab.show()
-
-
 
 
 if __name__ == '__main__':
