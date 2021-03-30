@@ -2,7 +2,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 
-from tensorflow.keras.layers import Dropout, BatchNormalization, Input, Concatenate, Dense, Add
+from tensorflow.keras.layers import Dropout, Input, Concatenate, Add
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
 from spektral.layers import GCNConv
@@ -120,16 +120,16 @@ def Dense_GCN(tr_params, levels=7):
 
     skips = []
     x, a = X_in, A_in
-    x = GConv(32)([x, a])
+    x = GConv(64)([x, a])
     skips.append(x)
 
     for i in range(levels - 1):
-        x = GConv(32)([x, a])
+        x = GConv(64)([x, a])
         x = Concatenate()([x, skips[i]])
         skips.append(x)
 
     skips.pop()
-    x = GConv(32)([x, a])
+    x = GConv(64)([x, a])
     x = Concatenate()([x, *skips])
 
     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
