@@ -109,4 +109,3 @@ if __name__ == '__main__':
     prep = Preprocess(model_cfg)
     x, a, y = prep.assess_scan(sample)
 
-    PC_Vis.draw_graph(x, a)

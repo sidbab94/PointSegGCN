@@ -4,6 +4,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from tensorflow import sparse, SparseTensor
 from scipy import sparse as sp
+
 from preproc_utils.readers import *
 from preproc_utils.sensor_fusion import SensorFusion
 from preproc_utils.graph_gen import compute_adjacency as compute_graph, normalize_A
@@ -28,22 +29,30 @@ class Preprocess:
         self.features = self.cfg['feature_spec'].split('_')
         self.feat_len = sum(c for c in [len(i) for i in self.features])
 
-    def assess_scan(self, scan_path):
+    def assess_scan(self, scan_path, testds=False):
         '''
         Scan path is processed from start to end, all necessary training inputs obtained
         :param scan_path: file path containing velodyne point cloud (.bin)
+        :param testds: boolean flag indicating "test" scenario (no ground truth)
         :return: pc_rgb, A, labels_rgb
         '''
 
+        self.outs = []
+        self.testds = testds
         self.scan_path = scan_path
         self.get_scan_data()
         self.get_modality()
         if 'd' in self.features:
             self.get_depth()
         self.reduce_data()
-
         self.get_graph()
-        return self.pc, self.A, self.labels
+
+        self.outs.append(self.pc)
+        self.outs.append(self.A)
+        if self.testds is False:
+            self.outs.append(self.labels)
+
+        return self.outs
 
     def get_scan_data(self):
         '''
@@ -61,7 +70,8 @@ class Preprocess:
 
         self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
         label_path = join('labels', scan_no + '.label')
-        self.labels = get_labels(join(seq_path, label_path), self.cfg)
+        if self.testds is False:
+            self.labels = get_labels(join(seq_path, label_path), self.cfg)
 
         calib_path = join(seq_path, 'calib.txt')
         self.calib = read_calib_file(calib_path)
@@ -73,30 +83,25 @@ class Preprocess:
         '''
         Run the SensorFusion pipeline on scan attributes, to obtain X,Y augmented with RGB information
         '''
-        proj = SensorFusion(self.pc, self.labels, self.calib, self.img, get_rgb='rgb' in self.features)
+        proj = SensorFusion(self.pc, self.calib, self.img, get_rgb='rgb' in self.features)
         fused_outputs = proj.render_lidar_rgb()
         cam_inds = fused_outputs[0]
         imgfov_pc_velo = self.pc[cam_inds, :]
-        self.labels = self.labels[cam_inds]
+        if self.testds is False:
+            self.labels = self.labels[cam_inds]
         if 'rgb' in self.features:
             self.pc = np.hstack((imgfov_pc_velo, fused_outputs[1]))
         else:
             self.pc = imgfov_pc_velo
 
-        if not isinstance(cam_inds, np.ndarray):
-            # boolean flag to recognize memory exception error, while computing projection matrices
-            self.invalid_scan = True
 
     def get_graph(self):
         '''
         Compute sparse adjacency matrix from the modified point cloud array, based on nearest neighbour search
         A is also preprocessed (normalization) for Graph Convolution operations
         '''
-        if not self.invalid_scan:
-            self.A = compute_graph(self.pc, nn=10)
-            self.A = normalize_A(self.A)
-        else:
-            self.A = None
+        self.A = compute_graph(self.pc, nn=10)
+        self.A = normalize_A(self.A)
 
 
     def get_depth(self):
@@ -120,8 +125,8 @@ class Preprocess:
         else:
             raise Exception('No XYZ data found while processing point cloud.')
         self.pc = self.pc[valid_idx[0], :]
-        self.labels = self.labels[valid_idx[0]]
-
+        if self.testds is False:
+            self.labels = self.labels[valid_idx[0]]
 
 def rot_augment_pc(x, bs, angle=90, axis='z'):
     aug_x = []
@@ -149,19 +154,33 @@ def get_rot_matrix(axis, rads):
         raise Exception('Invalid axis provided')
 
 
-def generate_batch(prep, file, bs=4):
+def csr_to_tensor(a):
 
-    x, a, y = prep.assess_scan(file)
-    if bs != 'valid':
-        x = rot_augment_pc(x, bs)
-        y = np.tile(y, bs)
-        a = sp.block_diag([a] * bs)
     row, col, values = sp.find(a)
     out = SparseTensor(
         indices=np.array([row, col]).T, values=values, dense_shape=a.shape
     )
     a = sparse.reorder(out)
+    return a
+
+
+def tr_batch_gen(prep, file, bs=4):
+
+    x, a, y = prep.assess_scan(file)
+    x = rot_augment_pc(x, bs)
+    a = csr_to_tensor(sp.block_diag([a] * bs))
+    y = np.tile(y, bs)
+
     return x, a, y
+
+
+def va_batch_gen(prep, file, test=False):
+
+    ins = prep.assess_scan(file, test)
+    outs = [ins[0], csr_to_tensor(ins[1])]
+    if test is False:
+        outs.append(ins[2])
+    return outs
 
 
 if __name__ == '__main__':
@@ -178,8 +197,7 @@ if __name__ == '__main__':
     prep = Preprocess(model_cfg)
 
     start = time()
-    x, a, y = prep.assess_scan(train_files[95], aug_flag=False)
+    x, a, y = prep.assess_scan(train_files[95])
     print(time() - start)
     PC_Vis.draw_pc(x, True)
-    # PC_Vis.draw_graph(x, a)
-    # PC_Vis.draw_pc_labels(x, y, model_cfg, vis_test=True)
+#
