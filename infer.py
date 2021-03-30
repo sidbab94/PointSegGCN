@@ -4,13 +4,12 @@ from pathlib import Path
 import random
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from spektral.layers.ops import sp_matrix_to_sp_tensor
 
 from preprocess import *
 from time import time
 from train_utils.eval_metrics import iouEval
 from visualization import PC_Vis
-from model import Dense_GCN as network
+from models import Dense_GCN as network
 
 
 def test_all(FLAGS):
@@ -125,7 +124,9 @@ def test_single(FLAGS):
         print('Model deserialized and loaded from: ', latest_checkpoint)
     else:
         if FLAGS.model is None:
-            latest_model_path = sorted(Path('./models').iterdir(), key=os.path.getmtime)[-1]
+            all_models = sorted(Path('./models').iterdir())
+            all_models.pop()
+            latest_model_path = sorted(all_models, key=os.path.getmtime)[-1]
             loaded_model = load_model(filepath=latest_model_path, compile=False)
             print('No path provided. Latest saved model loaded from: ', latest_model_path)
         else:
@@ -133,22 +134,27 @@ def test_single(FLAGS):
 
     if FLAGS.file is None:
         train_files, val_files, test_files = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg)
-        test_file = random.choice(val_files)
+        if FLAGS.testds:
+            test_file = random.choice(test_files)
+        else:
+            test_file = random.choice(val_files)
         print('No path provided, performing random inference on: ', test_file)
     else:
         test_file = FLAGS.file
 
-
     start = time()
-    x, a, y = prep.assess_scan(test_file)
-    a = sp_matrix_to_sp_tensor(a)
-    # i = np.zeros_like(y)
-    predictions = loaded_model.predict_step([x, a])#, i])
+    outs = va_batch_gen(prep, test_file, FLAGS.testds)
+    predictions = loaded_model.predict_step([outs[0], outs[1]])
     print('Elapsed: ', time() - start)
     pred_labels = np.argmax(predictions, axis=-1)
 
-    map_iou(y, pred_labels, model_cfg)
+    if FLAGS.testds:
+        x = outs[0]
+        y = None
+    else:
+        map_iou(outs[2], pred_labels, model_cfg)
+        x, y = outs[0], outs[2]
 
     if FLAGS.vis:
-        PC_Vis.eval(pc=x, y_true=y, cfg=model_cfg, y_pred=pred_labels, gt_colour=False)
-
+        PC_Vis.eval(pc=x, y_true=y, cfg=model_cfg,
+                    y_pred=pred_labels, gt_colour=False)
