@@ -1,6 +1,7 @@
 import numpy as np
 np.seterr(all='ignore')
 from time import time
+
 class SensorFusion:
     """
     Fuses LiDAR geometric information with RGB modality, acquired from corresponding scan images.
@@ -12,10 +13,9 @@ class SensorFusion:
         img: RGB image array read from corresponding file path
     """
 
-    def __init__(self, pc, labels, calib, img, get_rgb=False):
+    def __init__(self, pc, calib, img, get_rgb=False):
 
         self.pc = pc
-        self.labels = labels
         self.calib = calib
         self.img = img
         self.rgb_ret = get_rgb
@@ -40,31 +40,25 @@ class SensorFusion:
         self.proj_mat = self.project_velo_to_cam2()
         outputs = []
 
-        # apply projection
-        try:
-            start = time()
+        pts_2d = self.project_to_image()
 
-            pts_2d = self.project_to_image()
+        # Filter lidar points to be within image FOV
+        inds = np.where((pts_2d[0, :] < img_width) & (pts_2d[0, :] >= 0) &
+                        (pts_2d[1, :] < img_height) & (pts_2d[1, :] >= 0) &
+                        (self.pc[:, 0] > 0)
+                        )[0]
+        outputs.append(inds)
 
-            # Filter lidar points to be within image FOV
-            inds = np.where((pts_2d[0, :] < img_width) & (pts_2d[0, :] >= 0) &
-                            (pts_2d[1, :] < img_height) & (pts_2d[1, :] >= 0) &
-                            (self.pc[:, 0] > 0)
-                            )[0]
-            outputs.append(inds)
+        # get 2d points corresponding to camera FOV and camera coordinates
+        imgfov_pc_pixel = np.array(pts_2d[:, inds].transpose(), dtype=np.float16)
+        if self.rgb_ret:
+            # get rgb array for projected 2d points based on nearest-pixel values on original image
+            rgb_coords = self.map_coord_rgb(imgfov_pc_pixel)
+            color_array_pts2d = self.img[rgb_coords[:, 0], rgb_coords[:, 1]] / 255
+            outputs.append(color_array_pts2d)
 
-            # get 2d points corresponding to camera FOV and camera coordinates
-            imgfov_pc_pixel = np.array(pts_2d[:, inds].transpose(), dtype=np.float16)
-            if self.rgb_ret:
-                # get rgb array for projected 2d points based on nearest-pixel values on original image
-                rgb_coords = self.map_coord_rgb(imgfov_pc_pixel)
-                color_array_pts2d = self.img[rgb_coords[:, 0], rgb_coords[:, 1]] / 255
-                outputs.append(color_array_pts2d)
+        return outputs
 
-            return outputs
-        except MemoryError:
-            # Projection computation may induce memory exceptions
-            return None, None
 
     def map_coord_rgb(self, array):
 
