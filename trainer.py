@@ -83,8 +83,8 @@ def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
     va_output = []
 
     # experimental class imbalancing solution
-    class_weights = map_content(cfg)
-    # class_weights = None
+    # class_weights = map_content(cfg)
+    class_weights = None
 
     loss_obj = assign_loss_func(loss_fn)
 
@@ -116,9 +116,15 @@ def train(FLAGS):
     :return: None
     '''
 
-    model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
+    model_cfg = get_cfg_params(cfg_file=FLAGS.config)
 
     model = network(model_cfg)
+
+    ## Pre-trained on VKITTI
+    latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
+    load_status = model.load_weights(latest_checkpoint)
+    load_status.assert_consumed()
+
     # save_summary(model)
     prep = Preprocess(model_cfg)
 
@@ -142,7 +148,7 @@ def train(FLAGS):
     # Default loss function
     loss_func = 'sparse_ce'
 
-    train_files, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg, shuffle=True)
+    train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=True)
 
     if FLAGS.trial:
         train_files = train_files[:2000]
@@ -237,7 +243,7 @@ def train(FLAGS):
     print('----------------------------------------------------------------------------------')
 
     if FLAGS.save:
-        save_path = 'models/infer_v4_0_DeepGCNv2_xyzirgb_nn10_200_bs4_cce_lov_aug'
+        save_path = 'models/infer_v4_1_DeepGCNv2_xyzrgb_nn10_200_vkitti_pretrained'
         model.save(save_path)
         print('     Model saved to {}'.format(save_path))
         print('==================================================================================')
