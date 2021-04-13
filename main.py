@@ -5,8 +5,6 @@ from infer import test_single, test_all
 
 if __name__ == '__main__':
 
-    base_dir = safe_load(open('./config/tr_config.yml', 'r'))['dataset']['base_dir']
-
     parser = argparse.ArgumentParser("Umbrella script for training / inference")
     parser.add_argument(
         '--debug',
@@ -14,13 +12,7 @@ if __name__ == '__main__':
         help='Print debug info'
     )
 
-    parser.add_argument('--dataset', '-d',
-                        type=str, default=base_dir,
-                        help='Base SemanticKITTI dataset directory, default: see config file')
-    parser.add_argument('--datacfg', '-s',
-                        type=str, default='./config/semantic-kitti.yaml',
-                        help='File path to dataset configuration .yaml, default: ./config/semantic-kitti.yaml')
-    parser.add_argument('--trconfig', '-c',
+    parser.add_argument('--config', '-c',
                         type=str, default='./config/tr_config.yml',
                         help='File path to training configuration .yml, default: ./config/tr_config.yml')
 
@@ -38,8 +30,8 @@ if __name__ == '__main__':
 
     inference = subparsers.add_parser('inference', help='Proceed to inference/evaluation')
     inference.add_argument('--file', '-f',
-                        type=str, default=None,
-                        help='Path to scan file to perform inference on, defaults to None --> random file chosen')
+                           type=str, default=None,
+                           help='Path to scan file to perform inference on, defaults to None --> random file chosen')
     inference.add_argument('--model', '-m',
                            type=str, default=None,
                            help='Path to model to perform inference with, defaults to None --> latest model chosen')
@@ -68,8 +60,3 @@ if __name__ == '__main__':
             test_all(FLAGS)
         else:
             test_single(FLAGS)
-
-
-
-
-

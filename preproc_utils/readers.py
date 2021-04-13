@@ -77,7 +77,7 @@ def read_calib_file(filepath):
     return data
 
 
-def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
+def get_split_files(cfg, count=-1, shuffle=False):
     '''
     Obtains list of files for each dataset split category from the SemanticKITTI dataset base directory
     :param dataset_path: SemanticKITTI dataset base directory
@@ -93,11 +93,12 @@ def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
     train_file_list = []
     test_file_list = []
     val_file_list = []
-    seq_list = np.sort(listdir(dataset_path))
+    seq_list = np.sort(listdir(cfg['base_dir']))
 
     for seq_id in seq_list:
-        seq_path = join(dataset_path, seq_id)
-        pc_path = join(seq_path, 'velodyne')
+        pc_path = join(cfg['base_dir'], seq_id)
+        if cfg['name'] == 'semantickitti':
+            pc_path = join(pc_path, 'velodyne')
         if seq_id in train_seqs:
             train_file_list.append([join(pc_path, f) for f in np.sort(listdir(pc_path))[:count]])
         elif seq_id in val_seqs:
@@ -119,19 +120,19 @@ def get_split_files(dataset_path, cfg, count=-1, shuffle=False):
     return train_file_list, val_file_list, test_file_list
 
 
-def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg='config/tr_config.yml'):
+def get_cfg_params(cfg_file='config/tr_config.yml'):
     '''
     Combines parameters from the SemanticKITTI as well as the user-defined training config files into single dictionary.
-    :param base_dir: SemanticKITTI dataset base directory
-    :param dataset_cfg: SemanticKITTI configuration file (.yaml)
+    :param base_dir: dataset base directory
+    :param dataset_cfg: dataset configuration file (.yaml)
     :param train_cfg: Training configuration file (.yaml)
     :return: model configuration dictionary
     '''
-    semkitti_cfg = safe_load(open(dataset_cfg, 'r'))
-    tr_params = safe_load(open(train_cfg, 'r'))['training_params']
-    cmap = np.array(list(semkitti_cfg['learning_class_colour_map'].values())) / 255.
-    cmap[:, [0, 2]] = cmap[:, [2, 0]]
-    split_params = semkitti_cfg['split']
+    cfg = safe_load(open(cfg_file, 'r'))
+    tr_params = cfg['training_params']
+    base_dir = cfg['dataset']['base_dir']
+    dataset_cfg = safe_load(open(cfg['dataset']['config'], 'r'))
+    split_params = dataset_cfg['split']
 
     seq_list = np.sort(listdir(base_dir))
 
@@ -144,16 +145,18 @@ def get_cfg_params(base_dir, dataset_cfg='config/semantic-kitti.yaml', train_cfg
                   'learning_rate': tr_params['learning_rate'],
                   'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
                   'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
+                  'name': dataset_cfg['name'],
+                  'base_dir': base_dir,
                   'tr_seq': list(seq_list[split_params['train']]),
                   'va_seq': list(seq_list[split_params['valid']]),
                   'te_seq': list(seq_list[split_params['test']]),
-                  'class_ignore': semkitti_cfg["learning_ignore"],
-                  'learning_map': semkitti_cfg["learning_map"],
-                  'learning_map_inv': semkitti_cfg["learning_map_inv"],
-                  'content': semkitti_cfg["content"],
-                  'color_map': cmap,
+                  'class_ignore': dataset_cfg["learning_ignore"],
+                  'learning_map': dataset_cfg["learning_map"],
+                  'learning_map_inv': dataset_cfg["learning_map_inv"],
+                  'content': dataset_cfg["content"],
+                  'color_map': np.array(list(dataset_cfg['color_map'].values())) / 255.,
                   'feature_spec': tr_params['feature_spec'],
-                  'labels': semkitti_cfg["labels"]}
+                  'labels': dataset_cfg["labels"]}
 
     return model_dict
 

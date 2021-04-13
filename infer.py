@@ -49,7 +49,7 @@ def test_all(FLAGS):
     for file in val_files:
         print('Processing: ', file)
         start = time()
-        x, a, y = generate_batch(prep, file, 'valid')
+        x, a, y = prep.assess_scan(file)
         predictions = loaded_model.predict_step([x, a])
         inf_times.append(time() - start)
         pred_labels = np.argmax(predictions, axis=-1)
@@ -88,6 +88,8 @@ def map_iou(y_true, y_pred, cfg):
 
     # label_list = list(cfg['labels'].keys())
     label_list = list(cfg['learning_map_inv'].values())
+    if label_list == 'Invalid':
+        label_list = list(cfg['labels'].keys())
 
     print('-----------------------')
     for i in range(cfg['num_classes']):
