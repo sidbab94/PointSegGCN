@@ -177,7 +177,7 @@ class PC_Vis:
             return pc
 
     @staticmethod
-    def draw_pc_labels(pc_xyz, pc_sem_ins, cfg, vis_test=False):
+    def draw_pc_labels(pc_xyz, pc_sem_ins, cfg=None, vis_test=False):
 
         ins_colors = cfg['color_map']
 
