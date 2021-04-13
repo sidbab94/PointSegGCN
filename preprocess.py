@@ -41,7 +41,8 @@ class Preprocess:
         self.testds = testds
         self.scan_path = scan_path
         self.get_scan_data()
-        self.get_modality()
+        if self.cfg['name'] == 'semantickitti':
+            self.get_modality()
         if 'd' in self.features:
             self.get_depth()
         self.reduce_data()
@@ -68,16 +69,24 @@ class Preprocess:
         seq_path = list(path_parts)[:-2]
         seq_path = join(*seq_path)
 
-        self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
-        label_path = join('labels', scan_no + '.label')
-        if self.testds is False:
-            self.labels = get_labels(join(seq_path, label_path), self.cfg)
+        if self.cfg['name'] == 'semantickitti':
+            self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
+            label_path = join('labels', scan_no + '.label')
+            if self.testds is False:
+                self.labels = get_labels(join(seq_path, label_path), self.cfg)
+            calib_path = join(seq_path, 'calib.txt')
+            self.calib = read_calib_file(calib_path)
 
-        calib_path = join(seq_path, 'calib.txt')
-        self.calib = read_calib_file(calib_path)
+            self.img_path = join(seq_path, 'image_2', scan_no + '.png')
+            self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
 
-        self.img_path = join(seq_path, 'image_2', scan_no + '.png')
-        self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
+        elif self.cfg['name'] == 'vkitti':
+            x = np.load(self.scan_path)
+            self.pc = np.empty((x.shape[0], 6))
+            self.pc[:, :3] = x[:, :3]
+            self.pc[:, 3:] = x[:, 3:-1]
+            self.labels = x[:, -1].astype(int)
+
 
     def get_modality(self):
         '''
@@ -187,17 +196,19 @@ if __name__ == '__main__':
     from time import time
     from visualization import PC_Vis
 
-    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+    BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
 
-    model_cfg = get_cfg_params(BASE_DIR)
+    model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='config/vkitti.yaml')
 
     train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=False)
+    print(len(train_files), len(val_files))
     file_list = train_files[:3]
 
     prep = Preprocess(model_cfg)
 
-    start = time()
-    x, a, y = prep.assess_scan(train_files[95])
-    print(time() - start)
+    # start = time()
+    x, a, y = prep.assess_scan(train_files[6])
+    # print(time() - start)
     PC_Vis.draw_pc(x, True)
-#
+    PC_Vis.draw_pc_labels(x, y, model_cfg, True)
+    # PC_Vis.draw_graph(x, a)
