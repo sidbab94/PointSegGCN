@@ -120,16 +120,16 @@ def Dense_GCN(tr_params, levels=7):
 
     skips = []
     x, a = X_in, A_in
-    x = GConv(64)([x, a])
+    x = GConv(32)([x, a])
     skips.append(x)
 
     for i in range(levels - 1):
-        x = GConv(64)([x, a])
+        x = GConv(32)([x, a])
         x = Concatenate()([x, skips[i]])
         skips.append(x)
 
     skips.pop()
-    x = GConv(64)([x, a])
+    x = GConv(32)([x, a])
     x = Concatenate()([x, *skips])
 
     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
