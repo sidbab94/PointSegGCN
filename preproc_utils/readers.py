@@ -172,6 +172,14 @@ def map_content(model_cfg):
 
     mapped_content = np.array([pc_content[i] for i in l_map.values()])
 
-    class_weights = minmax_scale(mapped_content)
-
+    class_weights = minmax_scale(mapped_content, feature_range=(0, 5))
+    # print(class_weights)
     return class_weights
+
+
+
+if __name__ == '__main__':
+
+    model_cfg = get_cfg_params('../config/tr_config.yml')
+
+    map_content(model_cfg)
