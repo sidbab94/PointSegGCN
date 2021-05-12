@@ -122,7 +122,7 @@ https://lars76.github.io/2018/09/27/loss-functions-for-segmentation.html
 '''
 
 def tversky_loss(y_true, y_pred, class_weights=None):
-    alpha = 0.7
+    alpha = 0.3
     beta = 1 - alpha
 
     if y_true.ndim < 2:
@@ -136,17 +136,17 @@ def tversky_loss(y_true, y_pred, class_weights=None):
     g0 = y_true
     g1 = ones - y_true
 
-    num = K.sum(p0 * g0)
-    den = num + alpha * K.sum(p0 * g1) + beta * K.sum(p1 * g0)
+    num = K.sum(p0 * g0, (0, 1))
+    den = num + alpha * K.sum(p0 * g1, (0, 1)) + beta * K.sum(p1 * g0, (0, 1))
 
     T = K.sum(num / den)  # when summing over classes, T has dynamic range [0 Ncl]
-    Ncl = K.cast(K.shape(y_true)[-1], 'float32')
-    return Ncl - T
+    # Ncl = K.cast(K.shape(y_true)[-1], 'float32')
+    return 1 - T
 
 
 def focal_tversky_loss(y_true, y_pred, gamma=1.1, class_weights=None):
-    tv = tversky_loss(y_true, y_pred)
-    return K.pow(K.abs(1 - tv), gamma)
+    tv = tversky_loss(y_true, y_pred, class_weights)
+    return K.pow(K.abs(tv), gamma)
 
 
 def focal_tversky_weighted(y_true, logits, class_weights=None):
@@ -155,7 +155,7 @@ def focal_tversky_weighted(y_true, logits, class_weights=None):
 
     if class_weights is not None:
         class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=1)
+        weights = tf.reduce_sum(class_weights * y_true, axis=-1)
         o = o * weights
 
     return tf.reduce_mean(o)
@@ -222,10 +222,10 @@ def cross_entropy(y_true, logits, class_weights=None):
 
     y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
     o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits)
-
     if class_weights is not None:
         class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=1)
+        weights = tf.reduce_sum(class_weights * y_true, axis=-1)
+        print(weights)
         o = o * weights
 
     return tf.reduce_mean(o)
@@ -234,17 +234,47 @@ def sparse_cross_entropy(y_true, y_pred, class_weights=None):
 
     loss_fn = SparseCategoricalCrossentropy(from_logits=True)
     o = loss_fn(y_true, y_pred)
+    print(o.shape)
+    if class_weights is not None:
+        y_true = tf.cast(tf.one_hot(y_true, 20), y_pred.dtype)
+        class_weights = tf.cast(class_weights, tf.float32)
+        weights = tf.reduce_sum(class_weights * y_true, axis=-1)
+        print(weights.shape)
+        o = o * weights
 
-    # if class_weights is not None:
-    #     y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
-    #     class_weights = tf.cast(class_weights, tf.float32)
-    #     weights = tf.reduce_sum(class_weights * y_true, axis=1)
-    #     o = o * weights
-
-    return o
+    return tf.reduce_mean(o)
 
 if __name__ == '__main__':
 
-    y_pred = np.array([1, 2, 3, 1, 4, 3], dtype=np.float32)
-    y_true = np.array([1, 2, 3, 1, 2, 3], dtype=np.float32)
+    y_true = np.array([1, 1, 3, 1, 2, 3], dtype=np.float32)
+    y_pred = np.array([[0.7, 0.9, 0.2, 0.0, 0.0],
+                       [0.0, 0.48, 0.23, 0.3, 0.0],
+                       [0.5, 0.0, 0.2, 0.6, 0.0],
+                       [0.4, 0.7, 0.6, 0.3, 0.0],
+                       [0.0, 0.15, 0.05, 0.55, 0.7],
+                       [0.2, 0.0, 0.11, 0.5, 0.8]], dtype=np.float32)
+
+    classes = np.eye(5)
+    y_true = classes[y_true.astype(int).reshape(-1)]
+    pred_labels = np.argmax(y_pred, axis=-1)
+    print(pred_labels)
+
+    ones = np.ones_like(y_true)
+
+    p0 = y_pred
+    p1 = ones - y_pred
+    g0 = y_true
+    g1 = ones - y_true
+
+    alpha = 0.7
+    beta = 1 - alpha
+
+    TP = np.sum(y_true * y_pred, (0, 1))
+    FN = np.sum(p0 * g1, (0, 1))
+    FP = np.sum(p1 * g0, (0, 1))
+
+    TI = TP / (TP + alpha*FN + beta*FP)
+    TL = 1 - TI
+
+    print(TL)
 
