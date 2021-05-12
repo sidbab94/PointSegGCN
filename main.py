@@ -1,5 +1,4 @@
 import argparse
-from yaml import safe_load
 from trainer import train
 from infer import test_single, test_all
 

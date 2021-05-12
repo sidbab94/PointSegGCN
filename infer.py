@@ -20,7 +20,7 @@ def test_all(FLAGS):
     :return: None
     '''
 
-    model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
+    model_cfg = get_cfg_params()
     prep = Preprocess(model_cfg)
 
     if FLAGS.ckpt:
@@ -37,7 +37,7 @@ def test_all(FLAGS):
         else:
             loaded_model = load_model(filepath=FLAGS.model, compile=False)
 
-    _, val_files, _ = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg)
+    _, val_files, _ = get_split_files(cfg=model_cfg)
 
     overall_val_miou = 0.0
     inf_times = []
@@ -114,28 +114,28 @@ def test_single(FLAGS):
     :return: None
     '''
 
-    model_cfg = get_cfg_params(base_dir=FLAGS.dataset, train_cfg=FLAGS.trconfig, dataset_cfg=FLAGS.datacfg)
+    model_cfg = get_cfg_params()
     prep = Preprocess(model_cfg)
 
     if FLAGS.ckpt:
         loaded_model = network(model_cfg)
         latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
         load_status = loaded_model.load_weights(latest_checkpoint)
-        # load_status = loaded_model.load_weights('./ckpt_weights/2021-02-16--15.02.34')
         load_status.assert_consumed()
         print('Model deserialized and loaded from: ', latest_checkpoint)
     else:
         if FLAGS.model is None:
             all_models = sorted(Path('./models').iterdir())
             all_models.pop()
-            latest_model_path = sorted(all_models, key=os.path.getmtime)[-1]
+            # latest_model_path = sorted(all_models, key=os.path.getmtime)[-1]
+            latest_model_path = 'models/infer_v4_0_DeepGCN_xyzirgb_nn10_200_bs4_cce_lov_aug'
             loaded_model = load_model(filepath=latest_model_path, compile=False)
             print('No path provided. Latest saved model loaded from: ', latest_model_path)
         else:
             loaded_model = load_model(filepath=FLAGS.model, compile=False)
 
     if FLAGS.file is None:
-        train_files, val_files, test_files = get_split_files(dataset_path=FLAGS.dataset, cfg=model_cfg)
+        train_files, val_files, test_files = get_split_files(cfg=model_cfg)
         if FLAGS.testds:
             test_file = random.choice(test_files)
         else:
