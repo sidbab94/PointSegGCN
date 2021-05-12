@@ -50,8 +50,8 @@ def train_step(inputs, model, optimizer, miou_obj, cfg, loss_fn='dice_loss'):
 
     X, A, Y, = inputs
     # experimental class imbalancing solution
-    # class_weights = map_content(cfg)
-    class_weights = None
+    class_weights = map_content(cfg)
+    # class_weights = None
 
     loss_obj = assign_loss_func(loss_fn)
 
@@ -83,8 +83,8 @@ def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
     va_output = []
 
     # experimental class imbalancing solution
-    # class_weights = map_content(cfg)
-    class_weights = None
+    class_weights = map_content(cfg)
+    # class_weights = None
 
     loss_obj = assign_loss_func(loss_fn)
 
@@ -120,10 +120,10 @@ def train(FLAGS):
 
     model = network(model_cfg)
 
-    ## Pre-trained on VKITTI
-    latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
-    load_status = model.load_weights(latest_checkpoint)
-    load_status.assert_consumed()
+    # ## Pre-trained on VKITTI
+    # latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
+    # load_status = model.load_weights(latest_checkpoint)
+    # load_status.assert_consumed()
 
     # save_summary(model)
     prep = Preprocess(model_cfg)
@@ -146,13 +146,13 @@ def train(FLAGS):
     # epoch at which to switch to lovàsz loss
     loss_switch_ep = model_cfg['loss_switch_ep']
     # Default loss function
-    loss_func = 'sparse_ce'
+    loss_func = 'cross_entropy'
 
     train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=True)
 
     if FLAGS.trial:
-        train_files = train_files[:2000]
-        val_files = val_files[:200]
+        train_files = train_files[:50]
+        val_files = val_files[:5]
 
     print('----------------------------------------------------------------------------------')
     print('     TRAINING START...')
@@ -242,8 +242,8 @@ def train(FLAGS):
     print('     TRAINING END...')
     print('----------------------------------------------------------------------------------')
 
-    if FLAGS.save:
-        save_path = 'models/infer_v4_1_DeepGCNv2_xyzrgb_nn10_200_vkitti_pretrained'
-        model.save(save_path)
-        print('     Model saved to {}'.format(save_path))
-        print('==================================================================================')
+    # if FLAGS.save:
+    #     save_path = 'models/infer_v4_1_DeepGCNv2_xyzrgb_nn10_200_vkitti_pretrained'
+    #     model.save(save_path)
+    #     print('     Model saved to {}'.format(save_path))
+    #     print('==================================================================================')
