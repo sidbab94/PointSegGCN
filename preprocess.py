@@ -42,6 +42,7 @@ class Preprocess:
         self.scan_path = scan_path
         self.get_scan_data()
         if self.cfg['name'] == 'semantickitti':
+            # since semantickitti doesn't have inherent colour modality
             self.get_modality()
         if 'd' in self.features:
             self.get_depth()
@@ -137,7 +138,17 @@ class Preprocess:
         if self.testds is False:
             self.labels = self.labels[valid_idx[0]]
 
+
 def rot_augment_pc(x, bs, angle=90, axis='z'):
+    '''
+    Rotational augmentation of input point cloud with respect to a provided axis
+    :param x: input point cloud
+    :param bs: augmented batch size
+    :param angle: rotational angle in degrees
+    :param axis: rotational axis
+    :return: stack of augmented point clouds
+    '''
+
     aug_x = []
     rot_mask = np.linspace(0.0, 3.0, bs)
     rads = np.array(np.radians(rot_mask * angle))
@@ -148,7 +159,14 @@ def rot_augment_pc(x, bs, angle=90, axis='z'):
         aug_x.append(rot_pc)
     return np.vstack(aug_x)
 
+
 def get_rot_matrix(axis, rads):
+    '''
+    Helper function for rotational augmentation -> provides a rotational transformation matrix depending on inputs
+    :param axis: rotational axis
+    :param rads: rotational angle in radians
+    :return: rotational transformation matrix
+    '''
 
     cosa = np.cos(rads)
     sina = np.sin(rads)
@@ -164,6 +182,11 @@ def get_rot_matrix(axis, rads):
 
 
 def csr_to_tensor(a):
+    '''
+    Converts a Scipy-CSR matrix into a Sparse Tensor for NN forward pass
+    :param a: input Scipy-CSR matrix
+    :return: Sparse Tensor
+    '''
 
     row, col, values = sp.find(a)
     out = SparseTensor(
@@ -174,6 +197,13 @@ def csr_to_tensor(a):
 
 
 def tr_batch_gen(prep, file, bs=4):
+    '''
+    Prepares a batch of training samples from an input scan file
+    :param prep: Preprocess() instance
+    :param file: input scan file
+    :param bs: batch size
+    :return: tuple of inputs to training loop
+    '''
 
     x, a, y = prep.assess_scan(file)
     x = rot_augment_pc(x, bs)
@@ -184,6 +214,13 @@ def tr_batch_gen(prep, file, bs=4):
 
 
 def va_batch_gen(prep, file, test=False):
+    '''
+    Prepares a validation/test batch from an input scan file
+    :param prep: Preprocess() instance
+    :param file: input scan file
+    :param test: Test dataset?
+    :return:
+    '''
 
     ins = prep.assess_scan(file, test)
     outs = [ins[0], csr_to_tensor(ins[1])]
@@ -198,9 +235,9 @@ if __name__ == '__main__':
 
     BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
 
-    model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='config/vkitti.yaml')
+    model_cfg = get_cfg_params()
 
-    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=False)
+    train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=False)
     print(len(train_files), len(val_files))
     file_list = train_files[:3]
 
