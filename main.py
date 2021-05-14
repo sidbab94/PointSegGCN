@@ -14,6 +14,11 @@ if __name__ == '__main__':
     parser.add_argument('--config', '-c',
                         type=str, default='./config/tr_config.yml',
                         help='File path to training configuration .yml, default: ./config/tr_config.yml')
+    parser.add_argument('--teamshook', '-t', type=str,
+                        default='https://fraunhofer.webhook.office.com/webhookb2/'
+                                '5f369874-5b0b-423d-abc3-39fb74fad97f@f930300c-c97d-4019-be03-add650a171c4/'
+                                'IncomingWebhook/0beb279184194497ac1417542d2b70ad/e5cfb095-83e4-48e3-ab48-a42463de981c',
+                        help='URL to send MS Teams channel notifications')
 
     subparsers = parser.add_subparsers(dest='algorithm', help='Training or Inference?')
 

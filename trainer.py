@@ -1,6 +1,8 @@
 import datetime
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import pymsteams
 
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
@@ -23,16 +25,11 @@ def assign_loss_func(name):
     :return: loss function object
     '''
 
-    loss_dict = {'cross_entropy': loss_metrics.cross_entropy,
-                 'lovasz': loss_metrics.lovasz_softmax_flat,
-                 'dice_loss': loss_metrics.dice_loss,
-                 'dice_xentropy': loss_metrics.dice_cross_entropy,
+    loss_dict = {'lovasz': loss_metrics.lovasz_softmax_flat,
                  'focal_tv': loss_metrics.focal_tversky_loss,
                  'tversky': loss_metrics.tversky_loss,
-                 'gen_dice_loss': loss_metrics.generalized_dice_loss,
-                 'focal_tv_weighted': loss_metrics.focal_tversky_weighted,
-                 'wcce': loss_metrics.weighted_cross_entropy,
-                 'sparse_ce': loss_metrics.sparse_cross_entropy}
+                 'sparse_ce': loss_metrics.sparse_cross_entropy,
+                 'sparse_focal': loss_metrics.sparse_categorical_focal_loss}
 
     return loss_dict.get(str(name))
 
@@ -66,6 +63,7 @@ def train_step(inputs, model, optimizer, miou_obj, cfg, loss_fn='dice_loss'):
     pred_labels = np.argmax(predictions, axis=-1)
     miou_obj.addBatch(pred_labels, Y)
     tr_miou, _ = miou_obj.getIoU()
+    tr_loss = np.mean(tr_loss)
 
     return tr_loss, tr_miou
 
@@ -97,6 +95,7 @@ def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
 
     miou_obj.addBatch(pred_labels, Y)
     va_miou, _ = miou_obj.getIoU()
+    va_loss = np.mean(va_loss)
 
     va_output.append([va_loss, va_miou])
 
@@ -136,6 +135,8 @@ def train(FLAGS):
     valid_summary_writer = tf.summary.create_file_writer(valid_log_dir)
     summary_writer = tf.summary.create_file_writer(gen_log_dir)
 
+    teamshook = pymsteams.connectorcard(FLAGS.teamshook)
+
     num_classes = model_cfg['num_classes']
     class_ignore = model_cfg["class_ignore"]
     train_miou_obj = iouEval(num_classes, class_ignore)
@@ -146,7 +147,7 @@ def train(FLAGS):
     # epoch at which to switch to lovàsz loss
     loss_switch_ep = model_cfg['loss_switch_ep']
     # Default loss function
-    loss_func = 'cross_entropy'
+    loss_func = 'sparse_focal'
 
     train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=True)
 
@@ -188,7 +189,7 @@ def train(FLAGS):
         for va_file in val_files:
             va_inputs = va_batch_gen(prep, va_file)
             va_loss, va_miou = evaluate(va_inputs, model=model, miou_obj=val_miou_obj,
-                                        cfg=model_cfg)
+                                        loss_fn=loss_func, cfg=model_cfg)
 
         # Write scalars to log for Tensorboard evaluation
         with train_summary_writer.as_default():
@@ -204,18 +205,21 @@ def train(FLAGS):
             tf.summary.scalar('loss', va_loss, step=epoch)
             tf.summary.scalar('mIoU', va_miou * 100, step=epoch)
 
-        print('Epoch: {} ||| '
-              'Train loss: {:.4f}, Train MeanIoU: {:.4f} | '
-              'Valid loss: {:.4f}, Valid MeanIoU: {:.4f} ||| '
-              .format(epoch+1,
-                      tr_loss, tr_miou * 100,
-                      va_loss, va_miou * 100))
+        curr_stats = ('Epoch: {} ||| Train loss: {:.4f}, Train MeanIoU: {:.4f} | '
+                      + 'Valid loss: {:.4f}, Valid MeanIoU: {:.4f} ||| ').format(epoch + 1,
+                                                                                 tr_loss, tr_miou * 100,
+                                                                                 va_loss, va_miou * 100)
+
+        print(curr_stats)
 
         ckpt.step.assign_add(1)
         tr_loss = 0
         tr_miou = 0
 
         if (int(ckpt.step) % 10 == 0):
+
+            teamshook.text(curr_stats)
+            teamshook.send()
 
             print('----------------------------------------------------------------------------------')
 
