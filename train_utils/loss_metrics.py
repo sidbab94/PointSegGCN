@@ -166,10 +166,12 @@ def sparse_cross_entropy(y_true, y_pred, class_weights=None):
     return tf.reduce_mean(o)
 
 
+# sourced from https://github.com/artemmavrin/focal-loss
 def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
                                   class_weights: Optional[Any] = None,
                                   from_logits: bool = False, axis: int = -1
                                   ) -> tf.Tensor:
+
 
     # Process focusing parameter
     gamma = tf.convert_to_tensor(gamma, dtype=tf.dtypes.float32)
