@@ -172,7 +172,7 @@ def map_content(model_cfg):
 
     mapped_content = np.array([pc_content[i] for i in l_map.values()])
 
-    class_weights = minmax_scale(mapped_content, feature_range=(0, 5))
+    class_weights = minmax_scale(mapped_content, feature_range=(0, 15))
     # print(class_weights)
     return class_weights
 
