@@ -1,8 +1,11 @@
 from __future__ import print_function, division
+import itertools
+from typing import Any, Optional
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import backend as K
 from tensorflow.keras.losses import SparseCategoricalCrossentropy
+_EPSILON = tf.keras.backend.epsilon()
 
 """ Title: Lovasz-Softmax and Jaccard hinge loss in Tensorflow
 Author: Maxim Berman
@@ -48,7 +51,7 @@ def lovasz_softmax(probas, labels, classes='present', per_image=False, ignore=No
     return loss
 
 
-def lovasz_softmax_flat(labels, probas, classes='present', class_weights=None):
+def lovasz_softmax_flat(labels, probas, classes='all', class_weights=None):
     """
     Multi-class Lovasz-Softmax loss
       probas: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
@@ -149,100 +152,94 @@ def focal_tversky_loss(y_true, y_pred, gamma=1.1, class_weights=None):
     return K.pow(K.abs(tv), gamma)
 
 
-def focal_tversky_weighted(y_true, logits, class_weights=None):
-    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
-    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits) + focal_tversky_loss(y_true, logits)
-
-    if class_weights is not None:
-        class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=-1)
-        o = o * weights
-
-    return tf.reduce_mean(o)
-
-
-def generalized_dice_coeff(y_true, y_pred):
-    y_true = K.cast(K.one_hot(y_true, num_classes=20), 'float32')
-    y_pred = K.cast(y_pred, 'float32')
-    w = K.sum(y_true)
-    w = 1/(w**2+0.000001)
-    # Compute gen dice coef:
-    numerator = y_true*y_pred
-    numerator = w*K.sum(numerator)
-    numerator = K.sum(numerator)
-
-    denominator = y_true+y_pred
-    denominator = w*K.sum(denominator)
-    denominator = K.sum(denominator)
-
-    gen_dice_coef = 2*numerator/denominator
-
-    return gen_dice_coef
-
-
-def generalized_dice_loss(y_true, y_pred, class_weights=None):
-    return 1 - generalized_dice_coeff(y_true, y_pred)
-
-
-def dice_loss(y_true, y_pred, class_weights=None):
-    if y_true.ndim < 2:
-        y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
-    y_pred = tf.math.sigmoid(y_pred)
-    numerator = 2 * tf.reduce_sum(y_true * y_pred)
-    denominator = tf.reduce_sum(y_true + y_pred)
-
-    return 1 - numerator / denominator
-
-
-def dice_cross_entropy(y_true, logits, class_weights=None):
-
-    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
-    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits) + dice_loss(y_true, logits)
-
-    if class_weights is not None:
-        class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=1)
-        o = o * weights
-
-    return tf.reduce_mean(o)
-
-def weighted_cross_entropy(y_true, logits, class_weights=None):
-
-    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
-    o = tf.nn.weighted_cross_entropy_with_logits(y_true, logits, pos_weight=1.2)
-
-    if class_weights is not None:
-        class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=1)
-        o = o * weights
-
-    return tf.reduce_mean(o)
-
-def cross_entropy(y_true, logits, class_weights=None):
-
-    y_true = tf.cast(tf.one_hot(y_true, 20), tf.float32)
-    o = tf.nn.softmax_cross_entropy_with_logits(y_true, logits)
-    if class_weights is not None:
-        class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=-1)
-        print(weights)
-        o = o * weights
-
-    return tf.reduce_mean(o)
-
 def sparse_cross_entropy(y_true, y_pred, class_weights=None):
 
     loss_fn = SparseCategoricalCrossentropy(from_logits=True)
     o = loss_fn(y_true, y_pred)
-    print(o.shape)
+
     if class_weights is not None:
         y_true = tf.cast(tf.one_hot(y_true, 20), y_pred.dtype)
         class_weights = tf.cast(class_weights, tf.float32)
         weights = tf.reduce_sum(class_weights * y_true, axis=-1)
-        print(weights.shape)
         o = o * weights
 
     return tf.reduce_mean(o)
+
+
+def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
+                                  class_weights: Optional[Any] = None,
+                                  from_logits: bool = False, axis: int = -1
+                                  ) -> tf.Tensor:
+
+    # Process focusing parameter
+    gamma = tf.convert_to_tensor(gamma, dtype=tf.dtypes.float32)
+    gamma_rank = gamma.shape.rank
+    scalar_gamma = gamma_rank == 0
+
+    # Process class weight
+    if class_weights is not None:
+        class_weights = tf.convert_to_tensor(class_weights,
+                                            dtype=tf.dtypes.float32)
+
+    # Process prediction tensor
+    y_pred = tf.convert_to_tensor(y_pred)
+    y_pred_rank = y_pred.shape.rank
+    if y_pred_rank is not None:
+        axis %= y_pred_rank
+        if axis != y_pred_rank - 1:
+            # Put channel axis last for sparse_softmax_cross_entropy_with_logits
+            perm = list(itertools.chain(range(axis),
+                                        range(axis + 1, y_pred_rank), [axis]))
+            y_pred = tf.transpose(y_pred, perm=perm)
+    elif axis != -1:
+        raise ValueError(
+            f'Cannot compute sparse categorical focal loss with axis={axis} on '
+            'a prediction tensor with statically unknown rank.')
+    y_pred_shape = tf.shape(y_pred)
+
+    # Process ground truth tensor
+    y_true = tf.dtypes.cast(y_true, dtype=tf.dtypes.int64)
+    y_true_rank = y_true.shape.rank
+
+    if y_true_rank is None:
+        raise NotImplementedError('Sparse categorical focal loss not supported '
+                                  'for target/label tensors of unknown rank')
+
+    reshape_needed = (y_true_rank is not None and y_pred_rank is not None and
+                      y_pred_rank != y_true_rank + 1)
+    if reshape_needed:
+        y_true = tf.reshape(y_true, [-1])
+        y_pred = tf.reshape(y_pred, [-1, y_pred_shape[-1]])
+
+    if from_logits:
+        logits = y_pred
+        probs = tf.nn.softmax(y_pred, axis=-1)
+    else:
+        probs = y_pred
+        logits = tf.math.log(tf.clip_by_value(y_pred, _EPSILON, 1 - _EPSILON))
+
+    xent_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=y_true,
+        logits=logits,
+    )
+
+    y_true_rank = y_true.shape.rank
+    probs = tf.gather(probs, y_true, axis=-1, batch_dims=y_true_rank)
+    if not scalar_gamma:
+        gamma = tf.gather(gamma, y_true, axis=0, batch_dims=y_true_rank)
+    focal_modulation = (1 - probs) ** gamma
+    loss = focal_modulation * xent_loss
+
+    if class_weights is not None:
+        class_weights = tf.gather(class_weights, y_true, axis=0,
+                                 batch_dims=y_true_rank)
+        loss *= class_weights
+
+    if reshape_needed:
+        loss = tf.reshape(loss, y_pred_shape[:-1])
+
+    return loss
+
 
 if __name__ == '__main__':
 
