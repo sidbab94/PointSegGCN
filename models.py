@@ -6,7 +6,7 @@ from tensorflow.keras.layers import Dropout, Input, Concatenate, Add
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
 from spektral.layers import GCNConv
-from train_utils.layers import GConv
+from train_utils.layers import GConv, CRF
 
 
 def conv_relu_bn(parents, filters, dropout=False, l2_reg=0.01):
@@ -133,6 +133,9 @@ def Dense_GCN(tr_params, levels=7):
     x = Concatenate()([x, *skips])
 
     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
+
+    ## experimental CRF
+    # output = CRF()(X_in, output)
 
     model = Model(inputs=[X_in, A_in], outputs=output, name='Dense_GCN')
 
