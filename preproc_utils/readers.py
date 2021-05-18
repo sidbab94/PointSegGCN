@@ -138,12 +138,10 @@ def get_cfg_params(cfg_file='config/tr_config.yml'):
 
     model_dict = {'epochs': tr_params['epochs'],
                   'num_classes': tr_params['num_classes'],
-                  'patience': tr_params['es_patience'],
                   'batch_size': tr_params['batch_size'],
                   'l2_reg': tr_params['l2_reg'],
                   'n_node_features': tr_params['n_node_features'],
                   'learning_rate': tr_params['learning_rate'],
-                  'lr_decay': round(tr_params['lr_decay_steps'] * tr_params['epochs']),
                   'loss_switch_ep': round(tr_params['lovasz_switch_ratio'] * tr_params['epochs']),
                   'name': dataset_cfg['name'],
                   'base_dir': base_dir,
@@ -153,12 +151,13 @@ def get_cfg_params(cfg_file='config/tr_config.yml'):
                   'class_ignore': dataset_cfg["learning_ignore"],
                   'learning_map': dataset_cfg["learning_map"],
                   'learning_map_inv': dataset_cfg["learning_map_inv"],
-                  'content': dataset_cfg["content"],
+                  'learning_label_map': dataset_cfg["learning_label_map"],
                   'color_map': np.array(list(dataset_cfg['color_map'].values())) / 255.,
                   'feature_spec': tr_params['feature_spec'],
                   'labels': dataset_cfg["labels"]}
 
     return model_dict
+
 
 def save_summary(model):
     from contextlib import redirect_stdout
@@ -166,20 +165,8 @@ def save_summary(model):
         with redirect_stdout(f):
             model.summary()
 
-def map_content(model_cfg):
-    pc_content = model_cfg['content']
-    l_map = model_cfg['learning_map_inv']
-
-    mapped_content = np.array([pc_content[i] for i in l_map.values()])
-
-    class_weights = minmax_scale(mapped_content, feature_range=(0, 15))
-    # print(class_weights)
-    return class_weights
-
-
 
 if __name__ == '__main__':
 
     model_cfg = get_cfg_params('../config/tr_config.yml')
 
-    map_content(model_cfg)

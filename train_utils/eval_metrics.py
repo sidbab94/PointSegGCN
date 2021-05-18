@@ -22,8 +22,8 @@ class iouEval:
         self.ignore = np.array(self.ignore_list, dtype=np.int64)
         self.include = np.array(
             [n for n in range(self.n_classes) if n not in self.ignore], dtype=np.int64)
-        # print("[IOU EVAL] IGNORE: ", self.ignore)
-        # print("[IOU EVAL] INCLUDE: ", self.include)
+        print("[IOU EVAL] IGNORE: ", self.ignore)
+        print("[IOU EVAL] INCLUDE: ", self.include)
 
         # reset the class counters
         self.reset()
