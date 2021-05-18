@@ -1,8 +1,6 @@
 dataset:
   base_dir: 'D:/SemanticKITTI/dataset/sequences'
   config: './config/semantic-kitti.yaml'
-#  base_dir: 'D:/vkitti3d_dataset_v1.0'
-#  config: './config/vkitti.yaml'
 
 training_params:
   epochs: 40
