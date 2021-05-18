@@ -45,8 +45,7 @@ if __name__ == '__main__':
                            help='Enable visualization of single scan inferences')
     inference.add_argument('--ckpt', default=False, action='store_true',
                            help='Load model from latest checkpoint weights')
-    inference.add_argument('--testds', default=False, action='store_true',
-                           help='Perform inference on file from test split')
+
 
     FLAGS = parser.parse_args()
 
