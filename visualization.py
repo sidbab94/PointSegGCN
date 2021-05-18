@@ -2,9 +2,23 @@ import os
 import numpy as np
 from mayavi import mlab
 import networkx as nx
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib import cm
 import open3d as o3d
 
 os.chdir(os.getcwd())
+
+class MplColorHelper:
+
+  def __init__(self, cmap_name, start_val, stop_val):
+    self.cmap_name = cmap_name
+    self.cmap = plt.get_cmap(cmap_name)
+    self.norm = mpl.colors.Normalize(vmin=start_val, vmax=stop_val)
+    self.scalarMap = cm.ScalarMappable(norm=self.norm, cmap=self.cmap)
+
+  def get_rgb(self, val):
+    return self.scalarMap.to_rgba(val)
 
 
 def create_8bit_rgb_lut():
@@ -213,17 +227,16 @@ class PC_Vis:
         return Y_semins
 
     @staticmethod
-    def draw_pc_depth(pc_xyzdrgbi):
+    def draw_pc_intensity(pc_xyzirgb):
 
-        depth = pc_xyzdrgbi[:, 3]
+        intensity = pc_xyzirgb[:, 3]
         pc = o3d.geometry.PointCloud()
-        pc.points = o3d.utility.Vector3dVector(pc_xyzdrgbi[:, 0:3])
-        # d2rgb = np.interp(depth, (depth.min(), depth.max()), (0, 255))
-        # pc.colors = o3d.utility.Vector3dVector(d2rgb / 255.)
+        pc.points = o3d.utility.Vector3dVector(pc_xyzirgb[:, 0:3])
 
-        d2rgb = np.interp(depth, (depth.min(), depth.max()), (0.0, 255.0))
-        d2rgb = np.repeat(d2rgb[:, np.newaxis], 3, axis=1)
-        pc.colors = o3d.utility.Vector3dVector(d2rgb / 255.)
+        i2rgb = np.interp(intensity, (intensity.min(), intensity.max()), (0.0, 255.0))
+        i2rgb /= 255.
+        COL = MplColorHelper('twilight_shifted', i2rgb.min(), i2rgb.max()).get_rgb(i2rgb)
+        pc.colors = o3d.utility.Vector3dVector(COL[:, :3])
 
         o3d.visualization.draw_geometries([pc])
 
@@ -281,14 +294,16 @@ class PC_Vis:
         mlab.show()
 
 
-if __name__ == '__main__':
-    from preprocess import *
 
-    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-    model_cfg = get_cfg_params(base_dir=BASE_DIR)
-    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
-    sample = train_files[0]
-    prep = Preprocess(model_cfg)
-    x, a, y = prep.assess_scan(sample)
-
-    # PC_Vis.draw_pc(x, True)
+#
+# if __name__ == '__main__':
+#     from preprocess import *
+#
+#     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+#     model_cfg = get_cfg_params(base_dir=BASE_DIR)
+#     train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
+#     sample = train_files[0]
+#     prep = Preprocess(model_cfg)
+#     x, a, y = prep.assess_scan(sample)
+#
+#     PC_Vis.draw_pc(x, True)
