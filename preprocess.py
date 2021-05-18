@@ -29,7 +29,7 @@ class Preprocess:
         self.features = self.cfg['feature_spec'].split('_')
         self.feat_len = sum(c for c in [len(i) for i in self.features])
 
-    def assess_scan(self, scan_path, testds=False):
+    def assess_scan(self, scan_path):
         '''
         Scan path is processed from start to end, all necessary training inputs obtained
         :param scan_path: file path containing velodyne point cloud (.bin)
@@ -38,12 +38,9 @@ class Preprocess:
         '''
 
         self.outs = []
-        self.testds = testds
         self.scan_path = scan_path
         self.get_scan_data()
-        if self.cfg['name'] == 'semantickitti':
-            # since semantickitti doesn't have inherent colour modality
-            self.get_modality()
+        self.get_modality()
         if 'd' in self.features:
             self.get_depth()
         self.reduce_data()
@@ -51,8 +48,7 @@ class Preprocess:
 
         self.outs.append(self.pc)
         self.outs.append(self.A)
-        if self.testds is False:
-            self.outs.append(self.labels)
+        self.outs.append(self.labels)
 
         return self.outs
 
@@ -70,23 +66,14 @@ class Preprocess:
         seq_path = list(path_parts)[:-2]
         seq_path = join(*seq_path)
 
-        if self.cfg['name'] == 'semantickitti':
-            self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
-            label_path = join('labels', scan_no + '.label')
-            if self.testds is False:
-                self.labels = get_labels(join(seq_path, label_path), self.cfg)
-            calib_path = join(seq_path, 'calib.txt')
-            self.calib = read_calib_file(calib_path)
+        self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
+        label_path = join('labels', scan_no + '.label')
+        self.labels = get_labels(join(seq_path, label_path), self.cfg)
+        calib_path = join(seq_path, 'calib.txt')
+        self.calib = read_calib_file(calib_path)
 
-            self.img_path = join(seq_path, 'image_2', scan_no + '.png')
-            self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
-
-        elif self.cfg['name'] == 'vkitti':
-            x = np.load(self.scan_path)
-            self.pc = np.empty((x.shape[0], 6))
-            self.pc[:, :3] = x[:, :3]
-            self.pc[:, 3:] = x[:, 3:-1]
-            self.labels = x[:, -1].astype(int)
+        self.img_path = join(seq_path, 'image_2', scan_no + '.png')
+        self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
 
 
     def get_modality(self):
@@ -97,8 +84,7 @@ class Preprocess:
         fused_outputs = proj.render_lidar_rgb()
         cam_inds = fused_outputs[0]
         imgfov_pc_velo = self.pc[cam_inds, :]
-        if self.testds is False:
-            self.labels = self.labels[cam_inds]
+        self.labels = self.labels[cam_inds]
         if 'rgb' in self.features:
             self.pc = np.hstack((imgfov_pc_velo, fused_outputs[1]))
         else:
@@ -117,12 +103,7 @@ class Preprocess:
     def get_depth(self):
 
         depth = np.linalg.norm(self.pc[:, :3], axis=1)
-        if 'xyz' in self.features:
-            self.pc = np.hstack((self.pc, depth))
-        else:
-            self.pc = np.delete(self.pc, np.s_[:3], axis=1)
-            self.pc = np.insert(self.pc, 0, depth, axis=1)
-
+        self.pc = np.hstack((self.pc, depth))
 
     def reduce_data(self):
         '''
@@ -130,16 +111,12 @@ class Preprocess:
         also filters the sample wrt sensor-point distance, set to 35 metres
         :return: None
         '''
-        if 'xyz' in self.features:
-            valid_idx = np.where(np.linalg.norm(self.pc[:, :3], axis=1) < 35.0)
-        else:
-            raise Exception('No XYZ data found while processing point cloud.')
+        valid_idx = np.where(np.linalg.norm(self.pc[:, :3], axis=1) < 35.0)
         self.pc = self.pc[valid_idx[0], :]
-        if self.testds is False:
-            self.labels = self.labels[valid_idx[0]]
+        self.labels = self.labels[valid_idx[0]]
 
 
-def rot_augment_pc(x, bs, angle=90, axis='z'):
+def augment_pc(x, bs, angle=90, axis='z', color=True):
     '''
     Rotational augmentation of input point cloud with respect to a provided axis
     :param x: input point cloud
@@ -156,7 +133,10 @@ def rot_augment_pc(x, bs, angle=90, axis='z'):
         rot = get_rot_matrix(axis, rads[i])
         rotated = rot @ x[:, :3].T
         rot_pc = np.hstack((rotated.T, x[:, 3:]))
+        if color and (i % 2 == 0):
+            rot_pc[:, 4:] += np.random.normal(0, 0.1, size=(x.shape[0], 3))
         aug_x.append(rot_pc)
+
     return np.vstack(aug_x)
 
 
@@ -196,7 +176,7 @@ def csr_to_tensor(a):
     return a
 
 
-def tr_batch_gen(prep, file, bs=4):
+def tr_batch_gen(prep, file, bs=10):
     '''
     Prepares a batch of training samples from an input scan file
     :param prep: Preprocess() instance
@@ -206,14 +186,14 @@ def tr_batch_gen(prep, file, bs=4):
     '''
 
     x, a, y = prep.assess_scan(file)
-    x = rot_augment_pc(x, bs)
+    x = augment_pc(x, bs)
     a = csr_to_tensor(sp.block_diag([a] * bs))
     y = np.tile(y, bs)
 
     return x, a, y
 
 
-def va_batch_gen(prep, file, test=False):
+def va_batch_gen(prep, file):
     '''
     Prepares a validation/test batch from an input scan file
     :param prep: Preprocess() instance
@@ -222,10 +202,8 @@ def va_batch_gen(prep, file, test=False):
     :return:
     '''
 
-    ins = prep.assess_scan(file, test)
-    outs = [ins[0], csr_to_tensor(ins[1])]
-    if test is False:
-        outs.append(ins[2])
+    ins = prep.assess_scan(file)
+    outs = [ins[0], csr_to_tensor(ins[1]), ins[2]]
     return outs
 
 
