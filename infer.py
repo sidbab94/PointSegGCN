@@ -1,11 +1,13 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import numpy as np
 from pathlib import Path
 import random
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 
-from preprocess import *
+from preprocess import Preprocess, va_batch_gen
+from preproc_utils.readers import get_cfg_params, get_split_files
 from time import time
 from train_utils.eval_metrics import iouEval
 from visualization import PC_Vis
@@ -65,7 +67,6 @@ def test_all(FLAGS):
     print('mIoU, averaged over all validation samples: ', overall_val_miou)
     print('Average inference time in seconds: ', avg_inf_time)
 
-
 def map_iou(y_true, y_pred, cfg):
     '''
     Maps IoU for each class in prediction array to its corresponding 'valid' class in ground-truth
@@ -77,34 +78,48 @@ def map_iou(y_true, y_pred, cfg):
     '''
 
     class_ignore = cfg["class_ignore"]
+
     test_miou = iouEval(len(class_ignore), class_ignore)
 
     test_miou.addBatch(y_pred, y_true)
-    te_miou, iou = test_miou.getIoU()
-
-    iou_dict = dict(zip(range(0, cfg['num_classes']), (iou * 100)))
+    miou, iou = test_miou.getIoU()
 
     valid_y = np.unique(y_true)
 
-    # label_list = list(cfg['labels'].keys())
-    label_list = list(cfg['learning_map_inv'].values())
-    if label_list == 'Invalid':
-        label_list = list(cfg['labels'].keys())
+    label_list = list(cfg['labels'].keys())
+
+    valid_cls = {k: v for k, v in class_ignore.items() if v == False}
 
     print('-----------------------')
     for i in range(cfg['num_classes']):
-        curr_class = cfg['labels'][label_list[i]]
         if i in valid_y:
-            curr_class = ' *** ' + curr_class + ' *** '
-
-        print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou_dict[i], 2)))
+            curr_class = cfg['labels'][label_list[i]].capitalize()
+            if i in valid_cls.keys():
+                print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou[i] * 100, 2)))
 
     print('\n *** Class present in Ground Truth ***')
 
+
     print('-----------------------')
-    print('Mean IoU: ', te_miou * 100)
+    print('Mean IoU: ', round(miou * 100, 2))
     print('-----------------------')
 
+
+@tf.function
+def infer(model, inputs):
+
+    predictions = model.predict_step([inputs[0], inputs[1]])
+
+    return predictions
+
+
+def load_saved_model():
+
+    latest_model_path = 'models/infer_v4_0_DeepGCN_xyzirgb_nn10_200_bs4_cce_lov_aug'
+    loaded_model = load_model(filepath=latest_model_path, compile=False)
+    print('Model deserialized and loaded from: ', loaded_model)
+
+    return loaded_model
 
 def test_single(FLAGS):
     '''
@@ -117,45 +132,32 @@ def test_single(FLAGS):
     model_cfg = get_cfg_params()
     prep = Preprocess(model_cfg)
 
-    if FLAGS.ckpt:
-        loaded_model = network(model_cfg)
-        latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
-        load_status = loaded_model.load_weights(latest_checkpoint)
-        load_status.assert_consumed()
-        print('Model deserialized and loaded from: ', latest_checkpoint)
-    else:
-        if FLAGS.model is None:
-            all_models = sorted(Path('./models').iterdir())
-            all_models.pop()
-            # latest_model_path = sorted(all_models, key=os.path.getmtime)[-1]
-            latest_model_path = 'models/infer_v4_0_DeepGCN_xyzirgb_nn10_200_bs4_cce_lov_aug'
-            loaded_model = load_model(filepath=latest_model_path, compile=False)
-            print('No path provided. Latest saved model loaded from: ', latest_model_path)
-        else:
-            loaded_model = load_model(filepath=FLAGS.model, compile=False)
+    # if FLAGS.ckpt:
+    #     loaded_model = network(model_cfg)
+    #     latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
+    #     load_status = loaded_model.load_weights(latest_checkpoint)
+    #     load_status.assert_consumed()
+    #     print('Model deserialized and loaded from: ', latest_checkpoint)
+    # else:
+    loaded_model = load_saved_model()
 
     if FLAGS.file is None:
         train_files, val_files, test_files = get_split_files(cfg=model_cfg)
-        if FLAGS.testds:
-            test_file = random.choice(test_files)
-        else:
-            test_file = random.choice(val_files)
+        test_file = random.choice(val_files)
         print('No path provided, performing random inference on: ', test_file)
     else:
         test_file = FLAGS.file
 
     start = time()
-    outs = va_batch_gen(prep, test_file, FLAGS.testds)
-    predictions = loaded_model.predict_step([outs[0], outs[1]])
-    print('Elapsed: ', time() - start)
+    outs = va_batch_gen(prep, test_file)
+    predictions = infer(loaded_model, outs)
+    elapsed = time() - start
     pred_labels = np.argmax(predictions, axis=-1)
 
-    if FLAGS.testds:
-        x = outs[0]
-        y = None
-    else:
-        map_iou(outs[2], pred_labels, model_cfg)
-        x, y = outs[0], outs[2]
+    map_iou(outs[2], pred_labels, model_cfg)
+    x, y = outs[0], outs[2]
+
+    print('\nElapsed: ', elapsed)
 
     if FLAGS.vis:
         PC_Vis.eval(pc=x, y_true=y, cfg=model_cfg,
