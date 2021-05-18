@@ -22,6 +22,29 @@ def color_mask(dist_adj, labels):
 
     return dist_adj
 
+
+def intensity_mask(dist_adj, x):
+
+    # Get (row,col) array corresponding to non zero elements from distance-based adj matrix
+    nz_arr = np.array(dist_adj.nonzero()).T
+
+    # Vectorized computation of labels corresponding to non-zero values
+    nz_intensity = x[:, 3][nz_arr]
+
+    # compute similarity mask
+    sim_mask = np.isclose(nz_intensity[:, 0], nz_intensity[:, 1], rtol=1e-02, equal_nan=False)
+
+    dist_adj.eliminate_zeros()
+
+    assert nz_arr.shape[0] == dist_adj.data.shape[0]
+
+    assert dist_adj.data.shape == sim_mask.shape
+
+    # Modify adj data vector with overlap info
+    dist_adj.data = dist_adj.data * sim_mask
+
+    return dist_adj
+
 def sklearn_graph(points, nn=5):
     '''
     Performs nearest neighbour search and computes a sparse adjacency matrix using Scikit-learn's API
@@ -56,7 +79,7 @@ def balltree_graph(points, radius=0.3, mode='connectivity'):
 
     return radius_neighbors_graph(points[:, :3], radius, mode=mode, include_self=True)
 
-def compute_adjacency(points, nn=5, labels=None):
+def compute_adjacency(points, nn=5):
     '''
     Computest a weighted and undirected distance-based adjacency matrix from point cloud array
     :param points: point cloud array
@@ -85,6 +108,8 @@ def compute_adjacency(points, nn=5, labels=None):
     # assert A.nnz % 2 == 0
     assert type(A) is csr_matrix
 
+    # A = intensity_mask(A, points)
+
     return A
 
 def normalize_A(a):
@@ -102,10 +127,14 @@ if __name__ == '__main__':
     from preprocess import *
     from time import time
 
-    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-    model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='../config/semantic-kitti.yaml', train_cfg='../config/tr_config.yml')
-    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
-    sample = train_files[0]
+    model_cfg = get_cfg_params(cfg_file='../config/tr_config.yml')
     prep = Preprocess(model_cfg)
+
+    train_files, _, _ = get_split_files(cfg=model_cfg, shuffle=False)
+    file_list = train_files[:3]
+    sample = file_list[2]
+
     x, a, y = prep.assess_scan(sample)
+    print(x.shape, a.shape)
+    PC_Vis.draw_graph(x, a)
 
