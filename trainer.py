@@ -6,11 +6,10 @@ import pymsteams
 
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.optimizers.schedules import ExponentialDecay
-from tensorflow_addons.optimizers import CyclicalLearningRate
 
 from train_utils import loss_metrics
 from train_utils.eval_metrics import iouEval
+from train_utils.tf_utils import CyclicalLR
 
 from preprocess import *
 from models import Dense_GCN as network
@@ -47,8 +46,8 @@ def train_step(inputs, model, optimizer, miou_obj, cfg, loss_fn='dice_loss'):
 
     X, A, Y, = inputs
     # experimental class imbalancing solution
-    class_weights = map_content(cfg)
-    # class_weights = None
+    # class_weights = map_content(cfg)
+    class_weights = None
 
     loss_obj = assign_loss_func(loss_fn)
 
@@ -81,8 +80,8 @@ def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
     va_output = []
 
     # experimental class imbalancing solution
-    class_weights = map_content(cfg)
-    # class_weights = None
+    # class_weights = map_content(cfg)
+    class_weights = None
 
     loss_obj = assign_loss_func(loss_fn)
 
@@ -119,7 +118,7 @@ def train(FLAGS):
 
     model = network(model_cfg)
 
-    # ## Pre-trained on VKITTI
+    # ## Pre-trained
     # latest_checkpoint = tf.train.latest_checkpoint('./ckpt_weights')
     # load_status = model.load_weights(latest_checkpoint)
     # load_status.assert_consumed()
@@ -159,18 +158,10 @@ def train(FLAGS):
     print('     TRAINING START...')
     print('----------------------------------------------------------------------------------')
 
-    # lr_schedule = CyclicalLearningRate(
-    #     initial_learning_rate=model_cfg['learning_rate'],
-    #     maximal_learning_rate=0.1,
-    #     step_size=tr_loader.steps_per_epoch,
-    #     scale_fn=lambda x: 1.,
-    # )
-    lr_schedule = ExponentialDecay(
-        model_cfg['learning_rate'],
-        decay_steps=model_cfg['lr_decay'],
-        decay_rate=0.96,
-        staircase=True)
+    lr_schedule = CyclicalLR(base_lr=0.01, max_lr=0.1)
+
     opt = Adam(learning_rate=lr_schedule)
+
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
     manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
 
