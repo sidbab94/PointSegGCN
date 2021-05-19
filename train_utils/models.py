@@ -5,7 +5,6 @@ import tensorflow as tf
 from tensorflow.keras.layers import Dropout, Input, Concatenate, Add
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
-from spektral.layers import GCNConv
 from train_utils.layers import GConv, CRF
 
 
