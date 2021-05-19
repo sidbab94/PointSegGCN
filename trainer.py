@@ -8,14 +8,48 @@ import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 
 from train_utils import loss_metrics
-from train_utils.eval_metrics import iouEval
-from train_utils.tf_utils import CyclicalLR
+from train_utils.jaccard import iouEval
 
 from preprocess import *
 from models import Dense_GCN as network
 
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 
+
+
+class CyclicalLR(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, base_lr=0.001, max_lr=0.01, step_size=2000., name=None):
+        self.base_lr = base_lr
+        self.max_lr = max_lr
+        self.step_size = step_size
+        self.name = name
+
+        self.scale_fn = lambda x: 1 / (2. ** (x - 1))
+        self.clr_iterations = 0.
+        self.trn_iterations = 0.
+
+    def __call__(self, step):
+        with tf.name_scope(self.name or "CyclicalLearningRate"):
+            base_lr = tf.convert_to_tensor(
+                self.base_lr, name="base_lr"
+            )
+            dtype = base_lr.dtype
+            max_lr = tf.cast(self.max_lr, dtype)
+            step_size = tf.cast(self.step_size, dtype)
+            step_as_dtype = tf.cast(step, dtype)
+            cycle = tf.floor(1 + step_as_dtype / (2 * step_size))
+            x = tf.abs(step_as_dtype / step_size - 2 * cycle + 1)
+
+            return base_lr + (max_lr - base_lr) * tf.maximum(tf.cast(0, dtype), (1 - x)) * self.scale_fn(cycle)
+
+    def get_config(self):
+        return {
+            "initial_learning_rate": self.base_lr,
+            "maximal_learning_rate": self.max_lr,
+            "step_size": self.step_size,
+            "name": self.name
+        }
 
 def assign_loss_func(name):
     '''

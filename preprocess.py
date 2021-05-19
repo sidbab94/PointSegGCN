@@ -5,9 +5,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from tensorflow import sparse, SparseTensor
 from scipy import sparse as sp
 
-from preproc_utils.readers import *
-from preproc_utils.sensor_fusion import SensorFusion
-from preproc_utils.graph_gen import compute_adjacency as compute_graph, normalize_A
+from helper_utils.readers import *
+from helper_utils.sensor_fusion import SensorFusion
+from helper_utils.graph_gen import compute_adjacency as compute_graph, normalize_A
 
 
 class Preprocess:
@@ -208,8 +208,7 @@ def va_batch_gen(prep, file):
 
 
 if __name__ == '__main__':
-    from time import time
-    from visualization import PC_Vis
+    from helper_utils.visualization import PC_Vis
 
     BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
 

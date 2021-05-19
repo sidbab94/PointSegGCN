@@ -7,10 +7,10 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 
 from preprocess import Preprocess, va_batch_gen
-from preproc_utils.readers import get_cfg_params, get_split_files
+from helper_utils.readers import get_cfg_params, get_split_files
 from time import time
-from train_utils.eval_metrics import iouEval
-from visualization import PC_Vis
+from train_utils.jaccard import iouEval
+from helper_utils.visualization import PC_Vis
 from models import Dense_GCN as network
 
 
