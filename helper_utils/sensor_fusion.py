@@ -1,6 +1,6 @@
 import numpy as np
 np.seterr(all='ignore')
-from visualization import PC_Vis
+
 
 class SensorFusion:
     """
@@ -103,12 +103,11 @@ class SensorFusion:
 
 if __name__ == '__main__':
 
-    from preproc_utils.readers import *
+    from helper_utils.readers import *
     from preprocess import Preprocess
-    from visualization import PC_Vis
+    from helper_utils.visualization import PC_Vis
     from pathlib import PurePath
     import cv2
-    import random
 
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
 

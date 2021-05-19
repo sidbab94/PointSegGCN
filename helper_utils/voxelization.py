@@ -1,4 +1,3 @@
-import numpy as np
 import math
 
 def sample(points, thresh=1000):
@@ -125,11 +124,11 @@ class voxelize:
 
 if __name__ == '__main__':
 
-    from preproc_utils.readers import *
+    from helper_utils.readers import *
     from preprocess import Preprocess
-    from preproc_utils.graph_gen import compute_adjacency, balltree_graph
+    from helper_utils.graph_gen import balltree_graph
     import networkx as nx
-    from visualization import show_voxel
+    from helper_utils.visualization import show_voxel
     from mayavi import mlab
 
     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'

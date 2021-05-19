@@ -1,4 +1,3 @@
-import numpy as np
 from sklearn.neighbors import NearestNeighbors, radius_neighbors_graph, kneighbors_graph
 from scipy.sparse import csr_matrix, spdiags
 
@@ -122,10 +121,9 @@ def normalize_A(a):
     return L
 
 if __name__ == '__main__':
-    from visualization import PC_Vis
+    from helper_utils.visualization import PC_Vis
 
     from preprocess import *
-    from time import time
 
     model_cfg = get_cfg_params(cfg_file='../config/tr_config.yml')
     prep = Preprocess(model_cfg)
