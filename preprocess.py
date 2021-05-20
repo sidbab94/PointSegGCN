@@ -1,13 +1,14 @@
 from pathlib import PurePath
 import cv2
 import os
+from time import time
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from tensorflow import sparse, SparseTensor
 from scipy import sparse as sp
 
-from helper_utils.readers import *
-from helper_utils.sensor_fusion import SensorFusion
-from helper_utils.graph_gen import compute_adjacency as compute_graph, normalize_A
+from utils.readers import *
+from utils.sensor_fusion import SensorFusion
+from utils.graph_gen import compute_adjacency as compute_graph, normalize_A
 
 
 class Preprocess:
@@ -207,22 +208,22 @@ def va_batch_gen(prep, file):
     return outs
 
 
-if __name__ == '__main__':
-    from helper_utils.visualization import PC_Vis
-
-    BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
-
-    model_cfg = get_cfg_params()
-
-    train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=False)
-    print(len(train_files), len(val_files))
-    file_list = train_files[:3]
-
-    prep = Preprocess(model_cfg)
-
-    # start = time()
-    x, a, y = prep.assess_scan(train_files[6])
-    # print(time() - start)
-    PC_Vis.draw_pc(x, True)
-    PC_Vis.draw_pc_labels(x, y, model_cfg, True)
-    # PC_Vis.draw_graph(x, a)
+# if __name__ == '__main__':
+#     from utils.visualization import PC_Vis
+#
+#     BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
+#
+#     model_cfg = get_cfg_params()
+#
+#     train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=False)
+#     print(len(train_files), len(val_files))
+#     file_list = train_files[:3]
+#
+#     prep = Preprocess(model_cfg)
+#
+#     # start = time()
+#     x, a, y = prep.assess_scan(train_files[6])
+#     # print(time() - start)
+#     PC_Vis.draw_pc(x, True)
+#     PC_Vis.draw_pc_labels(x, y, model_cfg, True)
+#     # PC_Vis.draw_graph(x, a)

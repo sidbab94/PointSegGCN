@@ -1,20 +1,22 @@
 import datetime
+from time import time
 import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-import pymsteams
 
+import pymsteams
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 
 from train_utils import loss_metrics
 from train_utils.jaccard import iouEval
+from train_utils.models import Dense_GCN as network
 
-from preprocess import *
-from models import Dense_GCN as network
+from utils.readers import get_cfg_params, get_split_files
+from preprocess import Preprocess, tr_batch_gen, va_batch_gen
 
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
-
 
 
 class CyclicalLR(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -51,6 +53,7 @@ class CyclicalLR(tf.keras.optimizers.schedules.LearningRateSchedule):
             "name": self.name
         }
 
+
 def assign_loss_func(name):
     '''
     Updates loss function corresponding to dictionary key-value pairs
@@ -67,7 +70,7 @@ def assign_loss_func(name):
     return loss_dict.get(str(name))
 
 
-def train_step(inputs, model, optimizer, miou_obj, cfg, loss_fn='dice_loss'):
+def train_step(inputs, model, optimizer, miou_obj, loss_fn='dice_loss'):
     '''
     Training step on single batch
     :param inputs: point cloud array, adjacency matrix
@@ -79,15 +82,12 @@ def train_step(inputs, model, optimizer, miou_obj, cfg, loss_fn='dice_loss'):
     '''
 
     X, A, Y, = inputs
-    # experimental class imbalancing solution
-    # class_weights = map_content(cfg)
-    class_weights = None
 
     loss_obj = assign_loss_func(loss_fn)
 
     with tf.GradientTape() as tape:
         predictions = model([X, A], training=True)
-        tr_loss = loss_obj(Y, predictions, class_weights=class_weights)
+        tr_loss = loss_obj(Y, predictions)
 
     gradients = tape.gradient(tr_loss, model.trainable_variables)
 
@@ -101,7 +101,7 @@ def train_step(inputs, model, optimizer, miou_obj, cfg, loss_fn='dice_loss'):
     return tr_loss, tr_miou
 
 
-def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
+def evaluate(inputs, model, miou_obj, loss_fn='dice_loss'):
     '''
     Evaluation step every epoch, on validation dataset.
     :param loader: validation dataset loader
@@ -113,10 +113,6 @@ def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
 
     va_output = []
 
-    # experimental class imbalancing solution
-    # class_weights = map_content(cfg)
-    class_weights = None
-
     loss_obj = assign_loss_func(loss_fn)
 
     X, A, Y = inputs
@@ -124,7 +120,7 @@ def evaluate(inputs, model, cfg, miou_obj, loss_fn='dice_loss'):
     predictions = model([X, A], training=False)
     pred_labels = np.argmax(predictions, axis=-1)
 
-    va_loss = loss_obj(Y, predictions, class_weights=class_weights)
+    va_loss = loss_obj(Y, predictions)
 
     miou_obj.addBatch(pred_labels, Y)
     va_miou, _ = miou_obj.getIoU()
@@ -206,15 +202,17 @@ def train(FLAGS):
 
     for epoch in range(model_cfg['epochs']):
 
+        start = time()
         for tr_file in train_files:
             tr_inputs = tr_batch_gen(prep, tr_file, 4)
             tr_loss, tr_miou = train_step(tr_inputs, model=model, optimizer=opt,
-                                          miou_obj=train_miou_obj, cfg=model_cfg, loss_fn=loss_func)
+                                          miou_obj=train_miou_obj, loss_fn=loss_func)
+
+        print('Elapsed for epoch {} : {} s'.format(epoch + 1, time() - start))
 
         for va_file in val_files:
             va_inputs = va_batch_gen(prep, va_file)
-            va_loss, va_miou = evaluate(va_inputs, model=model, miou_obj=val_miou_obj,
-                                        loss_fn=loss_func, cfg=model_cfg)
+            va_loss, va_miou = evaluate(va_inputs, model=model, miou_obj=val_miou_obj, loss_fn=loss_func)
 
         # Write scalars to log for Tensorboard evaluation
         with train_summary_writer.as_default():
