@@ -3,8 +3,6 @@ from os.path import join
 import numpy as np
 import struct
 from yaml import safe_load
-from sklearn.preprocessing import minmax_scale
-
 
 def read_bin_velodyne(pc_path, include_intensity=False):
     '''
@@ -166,7 +164,7 @@ def save_summary(model):
             model.summary()
 
 
-if __name__ == '__main__':
-
-    model_cfg = get_cfg_params('../config/tr_config.yml')
-
+# if __name__ == '__main__':
+#
+#     model_cfg = get_cfg_params('../config/tr_config.yml')
+#

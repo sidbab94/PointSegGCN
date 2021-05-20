@@ -100,39 +100,39 @@ class SensorFusion:
         points[:2, :] /= points[2, :]
         return points[:2, :]
 
-
-if __name__ == '__main__':
-
-    from helper_utils.readers import *
-    from preprocess import Preprocess
-    from helper_utils.visualization import PC_Vis
-    from pathlib import PurePath
-    import cv2
-
-    BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-
-    model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='../config/semantic-kitti.yaml',
-                               train_cfg='../config/tr_config.yml')
-
-    train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=False)
-
-    prep = Preprocess(model_cfg)
-
-    pc = read_bin_velodyne(train_files[0])
-    path_parts = PurePath(train_files[0]).parts
-    scan_no = (path_parts[-1]).split('.')[0]
-    seq_path = list(path_parts)[:-2]
-    seq_path = join(*seq_path)
-    label_path = join('labels', scan_no + '.label')
-    labels = get_labels(join(seq_path, label_path), model_cfg)
-    calib_path = join(seq_path, 'calib.txt')
-    calib = read_calib_file(calib_path)
-    img_path = join(seq_path, 'image_2', scan_no + '.png')
-    img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
-
-    fusion = SensorFusion(pc, labels, calib, img)
-    pc_xyzrgbi = fusion.render_lidar_rgb()
-
-    # PC_Vis.draw_pc(pc, vis_test=True)
-    PC_Vis.draw_pc(pc_xyzrgbi, vis_test=True)
-
+#
+# if __name__ == '__main__':
+#
+#     from utils.readers import *
+#     from preprocess import Preprocess
+#     from utils.visualization import PC_Vis
+#     from pathlib import PurePath
+#     import cv2
+#
+#     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
+#
+#     model_cfg = get_cfg_params(BASE_DIR, dataset_cfg='../config/semantic-kitti.yaml',
+#                                train_cfg='../config/tr_config.yml')
+#
+#     train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, shuffle=False)
+#
+#     prep = Preprocess(model_cfg)
+#
+#     pc = read_bin_velodyne(train_files[0])
+#     path_parts = PurePath(train_files[0]).parts
+#     scan_no = (path_parts[-1]).split('.')[0]
+#     seq_path = list(path_parts)[:-2]
+#     seq_path = join(*seq_path)
+#     label_path = join('labels', scan_no + '.label')
+#     labels = get_labels(join(seq_path, label_path), model_cfg)
+#     calib_path = join(seq_path, 'calib.txt')
+#     calib = read_calib_file(calib_path)
+#     img_path = join(seq_path, 'image_2', scan_no + '.png')
+#     img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+#
+#     fusion = SensorFusion(pc, labels, calib, img)
+#     pc_xyzrgbi = fusion.render_lidar_rgb()
+#
+#     # PC_Vis.draw_pc(pc, vis_test=True)
+#     PC_Vis.draw_pc(pc_xyzrgbi, vis_test=True)
+#
