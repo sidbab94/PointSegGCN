@@ -7,11 +7,13 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 
 from preprocess import Preprocess, va_batch_gen
-from helper_utils.readers import get_cfg_params, get_split_files
 from time import time
+
 from train_utils.jaccard import iouEval
-from helper_utils.visualization import PC_Vis
-from models import Dense_GCN as network
+from train_utils.models import Dense_GCN as network
+
+from utils.visualization import PC_Vis
+from utils.readers import get_cfg_params, get_split_files
 
 
 def test_all(FLAGS):
