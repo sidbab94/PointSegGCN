@@ -51,7 +51,7 @@ def lovasz_softmax(probas, labels, classes='present', per_image=False, ignore=No
     return loss
 
 
-def lovasz_softmax_flat(labels, probas, classes='all', class_weights=None):
+def lovasz_softmax_flat(labels, probas, classes='all'):
     """
     Multi-class Lovasz-Softmax loss
       probas: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
@@ -86,13 +86,6 @@ def lovasz_softmax_flat(labels, probas, classes='all', class_weights=None):
         present = tf.stack(present)
         losses_tensor = tf.boolean_mask(losses_tensor, present)
 
-    if class_weights is not None:
-        class_weights = tf.cast(class_weights, tf.float32)
-        if classes == 'present':
-            class_weights = tf.boolean_mask(class_weights, present)
-        weights = class_weights
-        losses_tensor = losses_tensor * weights
-
     loss = tf.reduce_mean(losses_tensor)
     return loss
 
@@ -124,7 +117,7 @@ dice_cross_entropy() obtained (partially) from:
 https://lars76.github.io/2018/09/27/loss-functions-for-segmentation.html
 '''
 
-def tversky_loss(y_true, y_pred, class_weights=None):
+def tversky_loss(y_true, y_pred):
     alpha = 0.3
     beta = 1 - alpha
 
@@ -147,28 +140,21 @@ def tversky_loss(y_true, y_pred, class_weights=None):
     return 1 - T
 
 
-def focal_tversky_loss(y_true, y_pred, gamma=1.1, class_weights=None):
-    tv = tversky_loss(y_true, y_pred, class_weights)
+def focal_tversky_loss(y_true, y_pred, gamma=1.1):
+    tv = tversky_loss(y_true, y_pred)
     return K.pow(K.abs(tv), gamma)
 
 
-def sparse_cross_entropy(y_true, y_pred, class_weights=None):
+def sparse_cross_entropy(y_true, y_pred):
 
     loss_fn = SparseCategoricalCrossentropy(from_logits=True)
     o = loss_fn(y_true, y_pred)
-
-    if class_weights is not None:
-        y_true = tf.cast(tf.one_hot(y_true, 20), y_pred.dtype)
-        class_weights = tf.cast(class_weights, tf.float32)
-        weights = tf.reduce_sum(class_weights * y_true, axis=-1)
-        o = o * weights
 
     return tf.reduce_mean(o)
 
 
 # sourced from https://github.com/artemmavrin/focal-loss
 def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
-                                  class_weights: Optional[Any] = None,
                                   from_logits: bool = False, axis: int = -1
                                   ) -> tf.Tensor:
 
@@ -177,11 +163,6 @@ def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
     gamma = tf.convert_to_tensor(gamma, dtype=tf.dtypes.float32)
     gamma_rank = gamma.shape.rank
     scalar_gamma = gamma_rank == 0
-
-    # Process class weight
-    if class_weights is not None:
-        class_weights = tf.convert_to_tensor(class_weights,
-                                            dtype=tf.dtypes.float32)
 
     # Process prediction tensor
     y_pred = tf.convert_to_tensor(y_pred)
@@ -231,11 +212,6 @@ def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
         gamma = tf.gather(gamma, y_true, axis=0, batch_dims=y_true_rank)
     focal_modulation = (1 - probs) ** gamma
     loss = focal_modulation * xent_loss
-
-    if class_weights is not None:
-        class_weights = tf.gather(class_weights, y_true, axis=0,
-                                 batch_dims=y_true_rank)
-        loss *= class_weights
 
     if reshape_needed:
         loss = tf.reshape(loss, y_pred_shape[:-1])
