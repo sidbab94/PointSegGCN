@@ -1,5 +1,6 @@
 from pathlib import PurePath
-import cv2
+# import cv2
+from PIL import Image
 import os
 from time import time
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -68,13 +69,18 @@ class Preprocess:
         seq_path = join(*seq_path)
 
         self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
+        print(self.scan_path, self.pc.shape)
         label_path = join('labels', scan_no + '.label')
         self.labels = get_labels(join(seq_path, label_path), self.cfg)
+        print(join(seq_path, label_path), self.labels.shape)
+        assert self.labels.shape[0] == self.pc.shape[0]
         calib_path = join(seq_path, 'calib.txt')
         self.calib = read_calib_file(calib_path)
 
         self.img_path = join(seq_path, 'image_2', scan_no + '.png')
-        self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
+        # self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
+        self.img = np.asarray(Image.open(self.img_path))
+        print(self.img.shape)
 
 
     def get_modality(self):
@@ -208,22 +214,22 @@ def va_batch_gen(prep, file):
     return outs
 
 
-# if __name__ == '__main__':
-#     from utils.visualization import PC_Vis
-#
-#     BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
-#
-#     model_cfg = get_cfg_params()
-#
-#     train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=False)
-#     print(len(train_files), len(val_files))
-#     file_list = train_files[:3]
-#
-#     prep = Preprocess(model_cfg)
-#
-#     # start = time()
-#     x, a, y = prep.assess_scan(train_files[6])
-#     # print(time() - start)
-#     PC_Vis.draw_pc(x, True)
-#     PC_Vis.draw_pc_labels(x, y, model_cfg, True)
-#     # PC_Vis.draw_graph(x, a)
+if __name__ == '__main__':
+    from utils.visualization import PC_Vis
+
+    BASE_DIR = safe_load(open('config/tr_config.yml', 'r'))['dataset']['base_dir']
+
+    model_cfg = get_cfg_params()
+
+    train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=False)
+    print(len(train_files), len(val_files))
+    file_list = train_files[:3]
+
+    prep = Preprocess(model_cfg)
+
+    # start = time()
+    x, a, y = prep.assess_scan(train_files[10])
+    # print(time() - start)
+    PC_Vis.draw_pc(x, True)
+    # PC_Vis.draw_pc_labels(x, y, model_cfg, True)
+    # PC_Vis.draw_graph(x, a)

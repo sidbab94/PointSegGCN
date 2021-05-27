@@ -2,7 +2,6 @@ tensorflow==2.4.0
 scikit-learn==0.24.0
 scipy==1.6.1
 PyYAML==5.4.1
-opencv-python==4.5.1.48
 matplotlib==3.3.4
 PyQt5==5.15.2
 mayavi==4.7.2
