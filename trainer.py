@@ -239,7 +239,7 @@ def train(FLAGS):
         tr_loss = 0
         tr_miou = 0
 
-        if (int(ckpt.step) % 10 == 0):
+        if (int(ckpt.step) % 1 == 0):
 
             teamshook.text(curr_stats)
             teamshook.send()
@@ -269,8 +269,8 @@ def train(FLAGS):
     print('     TRAINING END...')
     print('----------------------------------------------------------------------------------')
 
-    # if FLAGS.save:
-    #     save_path = 'models/infer_v4_1_DeepGCNv2_xyzrgb_nn10_200_vkitti_pretrained'
-    #     model.save(save_path)
-    #     print('     Model saved to {}'.format(save_path))
-    #     print('==================================================================================')
+    if FLAGS.save:
+        save_path = 'models/infer_v5_0_DeepGCNv3_xyzirgb_nn10_all_spccefocal'
+        model.save(save_path)
+        print('     Model saved to {}'.format(save_path))
+        print('==================================================================================')

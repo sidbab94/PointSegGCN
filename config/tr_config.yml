@@ -4,7 +4,7 @@ dataset:
   config: './config/semantic-kitti.yaml'
 
 training_params:
-  epochs: 40
+  epochs: 50
   batch_size: 1
   num_classes: 20
   learning_rate: 0.01
