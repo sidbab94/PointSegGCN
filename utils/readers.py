@@ -29,7 +29,7 @@ def load_label_kitti(label_path, remap_lut):
     :param remap_lut: look-up table based on the SemanticKITTI learning_map
     :return: point-wise ground truth label array
     '''
-    label = np.fromfile(label_path, dtype=int)
+    label = np.fromfile(label_path, dtype=np.int32)
     label = label.reshape((-1))
     sem_label = label & 0xFFFF  # semantic label in lower half
     inst_label = label >> 16  # instance id in upper half
