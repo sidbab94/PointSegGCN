@@ -1,5 +1,6 @@
 dataset:
-  base_dir: 'D:/SemanticKITTI/dataset/sequences'
+#  base_dir: 'D:/SemanticKITTI/dataset/sequences'
+  base_dir: '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences'
   config: './config/semantic-kitti.yaml'
 
 training_params:
