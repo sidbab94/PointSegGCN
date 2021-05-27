@@ -69,10 +69,8 @@ class Preprocess:
         seq_path = join(*seq_path)
 
         self.pc = read_bin_velodyne(self.scan_path, include_intensity='i' in self.features)
-        print(self.scan_path, self.pc.shape)
         label_path = join('labels', scan_no + '.label')
         self.labels = get_labels(join(seq_path, label_path), self.cfg)
-        print(join(seq_path, label_path), self.labels.shape)
         assert self.labels.shape[0] == self.pc.shape[0]
         calib_path = join(seq_path, 'calib.txt')
         self.calib = read_calib_file(calib_path)
@@ -80,7 +78,6 @@ class Preprocess:
         self.img_path = join(seq_path, 'image_2', scan_no + '.png')
         # self.img = cv2.cvtColor(cv2.imread(self.img_path), cv2.COLOR_BGR2RGB)
         self.img = np.asarray(Image.open(self.img_path))
-        print(self.img.shape)
 
 
     def get_modality(self):
@@ -222,7 +219,6 @@ if __name__ == '__main__':
     model_cfg = get_cfg_params()
 
     train_files, val_files, _ = get_split_files(cfg=model_cfg, shuffle=False)
-    print(len(train_files), len(val_files))
     file_list = train_files[:3]
 
     prep = Preprocess(model_cfg)
