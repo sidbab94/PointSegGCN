@@ -3,6 +3,8 @@ from functools import wraps
 from timeit import Timer
 import matplotlib.pyplot as plt
 from PIL import Image
+from utils.graph_gen import flann_search
+from scipy import sparse as sp
 
 import os
 
@@ -11,6 +13,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 
 TF_FLT = tf.float32
+TF_INT = tf.int32
 
 
 def scatter(array):
@@ -30,7 +33,7 @@ def timing(f):
 
 
 @timing
-def tf_proc(calib, pc, img):
+def fusion(calib, pc, img):
     extr = tf.cast(tf.reshape(calib['Ext'], (3, 4)), TF_FLT)  # extrinsic matrix
     intr = tf.cast(tf.reshape(calib['Int'], (3, 4)), TF_FLT)  # intrinsic matrix
     pc = tf.cast(tf.transpose(pc), TF_FLT)
@@ -60,14 +63,51 @@ def tf_proc(calib, pc, img):
         tf.concat([tf.expand_dims(pc_img[:, 1], 0),
                    tf.expand_dims(pc_img[:, 0], 0)], axis=0))
 
-    rgb_coords = tf.cast(tf.round(rgb_coords), dtype=tf.int32)
+    rgb_coords = tf.cast(tf.round(rgb_coords), TF_INT)
     img = tf.gather_nd(img, rgb_coords)
 
-    # mapped rgb values for projected velo points
+    # mapped rgb values for projected velo points, normalized
     pts_2d_rgb = tf.divide(img, tf.constant([255.]))
 
-    return inds, pts_2d_rgb
+    mod_pc = tf.transpose(tf.gather(pc, inds, axis=1))
+    mod_pc = tf.concat([mod_pc, pts_2d_rgb], axis=1)
 
+    return mod_pc
+
+@timing
+def tf_adjacency(mod_pc):
+
+    dist, idx = flann_search(mod_pc.numpy(), 10)
+
+    dist = tf.cast(dist, TF_FLT)
+    idx = tf.cast(idx, TF_INT)
+
+    M, k = dist.shape
+
+    assert M, k == idx.shape
+    assert tf.greater_equal(tf.reduce_min(dist), 0)
+
+    std = tf.math.reduce_std(dist, 0)
+    mu = tf.reduce_mean(dist, 0)
+    dist = tf.divide(tf.subtract(dist, mu), std)
+
+    I = tf.repeat(tf.range(0, M), k)
+    J = tf.reshape(idx, M * k)
+    a_inds = tf.cast(tf.stack([I, J], axis=1), tf.int64)
+    a_vals = tf.reshape(dist, M * k)
+    a_shape = tf.constant([M, M], dtype=tf.int64)
+
+    # A = tf.sparse.SparseTensor(a_inds, a_vals, a_shape)
+    A = sp.csr_matrix((a_vals.numpy(), (I.numpy(), J.numpy())), shape=(M, M))
+    return A
+
+@timing
+def tf_reduce(pc, red_dist=8.0):
+
+    eucl = tf.math.reduce_euclidean_norm(pc[:, :3], axis=1)
+    valid_idx = tf.squeeze(tf.where(tf.less(eucl, red_dist)))
+
+    return tf.gather(pc, valid_idx, axis=0)
 
 @timing
 def np_proc(calib, pc, img):
@@ -95,7 +135,10 @@ def np_proc(calib, pc, img):
     rgb_coords = (rgb_coords.round() - 1).astype(np.int32)
     pts_2d_rgb = img[rgb_coords[:, 0], rgb_coords[:, 1]] / 255
 
-    return inds, pts_2d_rgb
+    mod_pc = pc.T[inds, :]
+    mod_pc = np.hstack((mod_pc, pts_2d_rgb))
+
+    return mod_pc
 
 
 def read_calib_file(filepath):
@@ -115,11 +158,16 @@ def read_calib_file(filepath):
 
 
 data = read_calib_file('calib.txt')
-pc = np.load('sample.npy')[:, :3]
+pc = np.load('sample.npy')
 img = np.asarray(Image.open('sample.png'))
 
-arr = np_proc(data, pc, img)
+# arr = np_proc(data, pc, img)
+# tensor = fusion(data, pc, img)
 
-tensor = tf_proc(data, pc, img)
+pc_red = tf_reduce(pc)
+adj = tf_adjacency(pc_red)
 
-# assert np.allclose(arr, tensor, atol=0)
+
+from utils.visualization import PC_Vis
+
+PC_Vis.draw_graph(pc[:, :3], adj)
