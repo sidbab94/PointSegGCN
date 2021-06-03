@@ -110,7 +110,7 @@ def flann_search(points, nn=10):
     params = flann.build_index(points, algorithm="kdtree_simple",
                                target_precision=0.8, log_level="info")
     idx, dist = flann.nn_index(points, nn, checks=params["checks"])
-    return dist, idx
+    return dist[:, 1:], idx[:, 1:]
 
 
 def compute_adjacency(points, nn=10):
