@@ -1,16 +1,28 @@
 import numpy as np
+import struct
 from functools import wraps
 from timeit import Timer
 import matplotlib.pyplot as plt
 from PIL import Image
 from utils.graph_gen import flann_search
-from scipy import sparse as sp
+from utils.visualization import PC_Vis
 
 import os
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
+
+
+#####
+'''
+TO DO:
+
+- Encapsulate reader functions into single pipeline
+- Wrap tf modular functions into a single function (inputs = X, Y, Img, Calib as np arrays)
+
+'''
+#####
+
 
 TF_FLT = tf.float32
 TF_INT = tf.int32
@@ -34,8 +46,8 @@ def timing(f):
 
 @timing
 def fusion(calib, pc, img):
-    extr = tf.cast(tf.reshape(calib['Ext'], (3, 4)), TF_FLT)  # extrinsic matrix
-    intr = tf.cast(tf.reshape(calib['Int'], (3, 4)), TF_FLT)  # intrinsic matrix
+    extr = tf.cast(tf.reshape(calib['Tr'], (3, 4)), TF_FLT)  # extrinsic matrix
+    intr = tf.cast(tf.reshape(calib['P2'], (3, 4)), TF_FLT)  # intrinsic matrix
     pc = tf.cast(tf.transpose(pc), TF_FLT)
     img = tf.cast(img, TF_FLT)
     h, w, _ = img.shape
@@ -97,49 +109,22 @@ def tf_adjacency(mod_pc):
     a_vals = tf.reshape(dist, M * k)
     a_shape = tf.constant([M, M], dtype=tf.int64)
 
-    # A = tf.sparse.SparseTensor(a_inds, a_vals, a_shape)
-    A = sp.csr_matrix((a_vals.numpy(), (I.numpy(), J.numpy())), shape=(M, M))
+    A = tf.sparse.SparseTensor(a_inds, a_vals, a_shape)
+    # A = sp.csr_matrix((a_vals.numpy(), (I.numpy(), J.numpy())), shape=(M, M))
     return A
 
 @timing
-def tf_reduce(pc, red_dist=8.0):
+def tf_reduce(fused_pc, red_dist=35.0):
 
-    eucl = tf.math.reduce_euclidean_norm(pc[:, :3], axis=1)
+    eucl = tf.math.reduce_euclidean_norm(fused_pc[:, :3], axis=1)
     valid_idx = tf.squeeze(tf.where(tf.less(eucl, red_dist)))
 
-    return tf.gather(pc, valid_idx, axis=0)
+    return tf.gather(fused_pc, valid_idx, axis=0)
 
-@timing
-def np_proc(calib, pc, img):
-    extr = calib['Ext'].reshape(3, 4)
-    intr = calib['Int'].reshape(3, 4)
-    pc = np.array(pc.transpose(), dtype=np.float32)
-    img = img.astype(np.float32)
-    h, w, _ = img.shape
 
-    transf = np.vstack((extr, np.array([0., 0., 0., 1.], dtype=np.float32)))
-    proj_mat = intr @ transf
+def tf_sparse_to_numpy(sp_input):
 
-    pts = np.vstack((pc, np.ones((1, pc.shape[1]))))
-    pts_2d = proj_mat @ pts
-    pts_2d = (pts_2d[:2, :] / pts_2d[2, :])[:2, :]
-
-    inds = np.where((pts_2d[0, :] < w) & (pts_2d[0, :] >= 0) &
-                    (pts_2d[1, :] < h) & (pts_2d[1, :] >= 0) &
-                    (pc[0, :] > 0)
-                    )[0]
-    pc_img = np.array(pts_2d[:, inds].transpose(), dtype=np.float32)
-
-    rgb_coords = np.vstack((pc_img[:, 1], pc_img[:, 0])).transpose()
-
-    rgb_coords = (rgb_coords.round() - 1).astype(np.int32)
-    pts_2d_rgb = img[rgb_coords[:, 0], rgb_coords[:, 1]] / 255
-
-    mod_pc = pc.T[inds, :]
-    mod_pc = np.hstack((mod_pc, pts_2d_rgb))
-
-    return mod_pc
-
+    return tf.sparse.to_dense(tf.sparse.reorder(sp_input)).numpy()
 
 def read_calib_file(filepath):
     data = {}
@@ -157,17 +142,44 @@ def read_calib_file(filepath):
     return data
 
 
-data = read_calib_file('calib.txt')
-pc = np.load('sample.npy')
-img = np.asarray(Image.open('sample.png'))
+def read_bin_velodyne(pc_path, include_intensity=False):
+    '''
+    Reads velodyne binary file and converts it to a numpy.nd.array
+    :param pc_path: SemanticKITTI binary scan file path
+    :return: point cloud array
+    '''
+    pc_list = []
+    with open(pc_path, 'rb') as f:
+        content = f.read()
+        pc_iter = struct.iter_unpack('ffff', content)
+        for idx, point in enumerate(pc_iter):
+            if include_intensity:
+                pc_list.append([point[0], point[1], point[2], point[3]])
+            else:
+                pc_list.append([point[0], point[1], point[2]])
+    return np.asarray(pc_list, dtype=np.float32)
+
+
+
+BASE_DIR = '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences'
+seq_path = os.path.join(BASE_DIR, '00')
+pc = read_bin_velodyne(os.path.join(seq_path, 'velodyne', '000000.bin'))
+img_path = os.path.join(seq_path, 'image_2', '000000.png')
+# img = img_to_array(load_img(img_path))
+img = np.asarray(Image.open(img_path))
+data = read_calib_file(os.path.join(seq_path, 'calib.txt'))
+
+
+fused_pc = fusion(data, pc, img)
 
 # arr = np_proc(data, pc, img)
-# tensor = fusion(data, pc, img)
 
-pc_red = tf_reduce(pc)
+pc_red = tf_reduce(fused_pc)
+
+# PC_Vis.draw_pc(pc_red, True)
+
 adj = tf_adjacency(pc_red)
 
+adj_array = tf.sparse.to_dense(tf.sparse.reorder(adj)).numpy()
 
-from utils.visualization import PC_Vis
-
-PC_Vis.draw_graph(pc[:, :3], adj)
+PC_Vis.draw_graph(pc_red[:, :3], adj_array)
