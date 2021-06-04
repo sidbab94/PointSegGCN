@@ -117,7 +117,8 @@ def infer(model, inputs):
 
 def load_saved_model():
 
-    latest_model_path = 'models/infer_v4_0_DeepGCN_xyzirgb_nn10_200_bs4_cce_lov_aug'
+    # latest_model_path = 'models/infer_v4_0_DeepGCN_xyzirgb_nn10_200_bs4_cce_lov_aug'
+    latest_model_path = 'models/infer_v5_0_DeepGCNv3_xyzirgb_nn10_all_spccefocal'
     loaded_model = load_model(filepath=latest_model_path, compile=False)
     print('Model deserialized and loaded from: ', loaded_model)
 
