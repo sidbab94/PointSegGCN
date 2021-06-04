@@ -251,9 +251,9 @@ class PC_Vis:
         """
         point_size = 0.09  # 0.2
         edge_size = 0.025
-        G = nx.from_scipy_sparse_matrix(graph)
-        # G = nx.from_numpy_array(graph)
-        G = nx.convert_node_labels_to_integers(G)
+        # G = nx.from_scipy_sparse_matrix(graph)
+        G = nx.from_numpy_array(graph)
+        # G = nx.convert_node_labels_to_integers(G)
         if pc.shape[1] > 5:
             rgb = pc[:, -3:] * 255
             scalars = np.zeros((rgb.shape[0],))
