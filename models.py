@@ -3,7 +3,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 from tensorflow.keras.layers import Dropout, Input, Concatenate, Add
 from tensorflow.keras.models import Model
-from train_utils.layers import GConv, CRF
+from layers import GConv
 
 def Concat_GCN_nat(tr_params):
 
@@ -64,10 +64,10 @@ def Res_GCN(tr_params, levels=7):
     return model
 
 
-def Dense_GCN(tr_params, levels=7):
+def Dense_GCN(cfg, levels=7):
 
-    F = tr_params['n_node_features']
-    num_classes = tr_params['num_classes']
+    F = cfg['n_node_features']
+    num_classes = cfg['num_classes']
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
@@ -88,9 +88,6 @@ def Dense_GCN(tr_params, levels=7):
     x = Concatenate()([x, *skips])
 
     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-
-    ## experimental CRF
-    # output = CRF()(X_in, output)
 
     model = Model(inputs=[X_in, A_in], outputs=output, name='Dense_GCN')
 
