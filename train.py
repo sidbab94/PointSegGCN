@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 
 from utils.jaccard import iouEval
-from models import Dense_GCN as network
+from models import PointGCN as network
 from layers import CyclicalLR
 
 from utils import readers as io, loss_metrics
@@ -71,6 +71,7 @@ def evaluate(inputs, model, miou_obj, loss_obj):
 
 
 def train():
+
     for epoch in range(cfg['epochs']):
 
         start = time()
@@ -112,8 +113,9 @@ def train():
 
         if (int(ckpt.step) % 5 == 0):
 
-            teamshook.text(curr_stats)
-            teamshook.send()
+            if cfg['send_stats_teams']:
+                teamshook.text(curr_stats)
+                teamshook.send()
 
             print('----------------------------------------------------------------------------------')
 
@@ -134,6 +136,9 @@ if __name__ == '__main__':
     cfg = io.get_cfg_params()
 
     model = network(cfg)
+    # model = PointNet2(1, cfg['num_classes'])
+
+    print(model.summary())
 
     tr_start_time = datetime.datetime.now().strftime("%Y-%m-%d--%H.%M.%S")
     train_log_dir = 'TB_logs/' + tr_start_time + '/train'
