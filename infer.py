@@ -63,7 +63,7 @@ def load_saved_model(cfg):
     return loaded_model
 
 @timing
-def test_single(file=None):
+def test_single(file=None, test_run=False):
 
     cfg = get_cfg_params()
     loaded_model = load_saved_model(cfg)
@@ -75,7 +75,7 @@ def test_single(file=None):
     else:
         test_file = file
 
-    x, a, y = preprocess(test_file, cfg)
+    x, a, y = preprocess(test_file, cfg, test_run)
     predictions = infer(loaded_model, [x, a])
 
     pred_labels = np.argmax(predictions, axis=-1)
@@ -87,6 +87,7 @@ def test_single(file=None):
 
 if __name__ == '__main__':
 
-    file = 'D:/SemanticKITTI/dataset/sequences/08/velodyne/002989.bin'
+    # file = 'D:/SemanticKITTI/dataset/sequences/08/velodyne/002989.bin'
+    file = './samples/pc.bin'
 
-    test_single(file)
+    test_single(file, True)
