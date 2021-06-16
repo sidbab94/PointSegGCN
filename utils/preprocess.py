@@ -8,9 +8,8 @@ from pyflann import FLANN
 from utils import readers as io
 
 
-def preprocess(file_path, cfg, train=False):
-    pc, y, calib, img = io.read_scan_attr(file_path, cfg)
-
+def preprocess(file_path, cfg, train=False, test_run=False):
+    pc, y, calib, img = io.read_scan_attr(file_path, cfg, test_run)
     pc, y = lidar_rgb_fusion(pc, y, calib, img)
     pc, y = constrain_pc(pc, y)
     a = adjacency(pc, 10)

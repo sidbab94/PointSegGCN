@@ -1,5 +1,5 @@
 import os
-from pathlib import PurePath
+from pathlib import PurePath, Path
 import numpy as np
 from yaml import safe_load
 from PIL import Image
@@ -121,7 +121,7 @@ def read_calib_txt(file_path):
     return data
 
 
-def read_scan_attr(file_path, cfg):
+def read_scan_attr(file_path, cfg, test_run=False):
     '''
     Encapsulates individual reader functions and accesses all scan attributes
     (point cloud, labels, calibration data, RGB image) from provided point cloud file path.
@@ -132,7 +132,7 @@ def read_scan_attr(file_path, cfg):
 
     path_parts = PurePath(file_path).parts
 
-    if cfg['name'] == 'semantickitti':
+    if cfg['name'] == 'semantickitti' and test_run is not False:
         scan_no = (path_parts[-1]).split('.')[0]
         seq_path = list(path_parts)[:-2]
         seq_path = os.path.join(*seq_path)
@@ -140,7 +140,10 @@ def read_scan_attr(file_path, cfg):
         calib_path = os.path.join(seq_path, 'calib.txt')
         img_path = os.path.join(seq_path, 'image_2', (scan_no + '.png'))
     else:
-        raise Exception('Unencountered dataset. Specify directory structure to access entities.')
+        scan_dir = Path(file_path).parent.absolute()
+        label_path = os.path.join(scan_dir, 'y.label')
+        calib_path = os.path.join(scan_dir, 'calib.txt')
+        img_path = os.path.join(scan_dir, 'img.png')
 
     pc = np.fromfile(file_path, dtype=np.float32).reshape(-1, 4)
     labels = read_label_kitti(label_path, cfg)
