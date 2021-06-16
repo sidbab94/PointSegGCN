@@ -1,16 +1,19 @@
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.layers import Layer
+from tensorflow.keras.models import Model
 
 
 class GConv(Layer):
 
-    def __init__(self, units, activation='relu',
+    def __init__(self, units, dropout=False, activation='relu',
                  kernel_init='he_normal', bias_init='random_normal', **kwargs):
         super(GConv, self).__init__()
         self.units = units
+        self.dropout = dropout
         self.kernel_init = kernel_init
         self.bias_init = bias_init
         self.act_name = activation
@@ -32,6 +35,8 @@ class GConv(Layer):
 
     def call(self, inputs):
         x, a = inputs
+        if self.dropout:
+            x = tf.nn.dropout(x, rate=0.2, seed=1)
         output = tf.matmul(x, self.w)
         output = tf.sparse.sparse_dense_matmul(a, output)
         # output = K.bias_add(output, self.b)
@@ -45,6 +50,39 @@ class GConv(Layer):
         }
         base_config = super(GConv, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+class MLPBlock(Model):
+
+    def __init__(self, filters):
+        super(MLPBlock, self).__init__()
+        filters1, filters2, filters3 = filters
+
+        self.conv2a = tf.keras.layers.Conv1D(filters1, 1)
+        # self.bn2a = tf.keras.layers.BatchNormalization()
+
+        self.conv2b = tf.keras.layers.Conv1D(filters2, 1)
+        # self.bn2b = tf.keras.layers.BatchNormalization()
+
+        self.conv2c = tf.keras.layers.Conv1D(filters3, 1)
+        # self.bn2c = tf.keras.layers.BatchNormalization()
+
+    def call(self, input_tensor, training=False):
+
+        x = tf.expand_dims(input_tensor, 0)
+
+        x = self.conv2a(x)
+        # x = self.bn2a(x, training=training)
+        x = tf.nn.relu(x)
+
+        x = self.conv2b(x)
+        # x = self.bn2b(x, training=training)
+        x = tf.nn.relu(x)
+
+        x = self.conv2c(x)
+        # x = self.bn2c(x, training=training)
+
+        return tf.nn.softmax(x)
 
 
 class CyclicalLR(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -80,3 +118,5 @@ class CyclicalLR(tf.keras.optimizers.schedules.LearningRateSchedule):
             "step_size": self.step_size,
             "name": self.name
         }
+
+
