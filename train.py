@@ -111,7 +111,7 @@ def train():
         tr_loss = 0
         tr_miou = 0
 
-        if (int(ckpt.step) % 5 == 0):
+        if (int(ckpt.step) % 1 == 0):
 
             if cfg['send_stats_teams']:
                 teamshook.text(curr_stats)
