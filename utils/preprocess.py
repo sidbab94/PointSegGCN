@@ -96,6 +96,7 @@ def adjacency(pc, nn=10):
     V = dist.reshape(M * k)
 
     A = sp.csr_matrix((V, (I, J)), shape=(M, M))
+    A += sp.eye(A.shape[0])
 
     return normalize_A(A)
 
