@@ -1,18 +1,18 @@
 dataset:
-  base_dir: 'D:/SemanticKITTI/dataset/sequences'
-#  base_dir: '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences'
+#  base_dir: 'D:/SemanticKITTI/dataset/sequences'
+  base_dir: '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences'
   config: './config/semantic-kitti.yaml'
 
 training_params:
   trial: True
-  trial_size: 50
+  trial_size: 40000
   ckpt_save: False
   ckpt_restore: False
-  model_name: 'xyz'
+  model_name: 'dense_gcn_native'
   save_model: True
-  epochs: 25
+  epochs: 50
   num_classes: 20
-  batch_size: 1
+  batch_size: 8
   augment: True
   learning_rate: 0.01
   n_node_features: 7

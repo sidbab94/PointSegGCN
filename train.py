@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 
 from utils.jaccard import iouEval
-from models import PointGCN as network
+from models import Dense_GCN as network
 from layers import CyclicalLR
 
 from utils import readers as io, loss_metrics

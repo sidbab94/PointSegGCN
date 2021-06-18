@@ -132,7 +132,7 @@ def read_scan_attr(file_path, cfg, test_run=False):
 
     path_parts = PurePath(file_path).parts
 
-    if cfg['name'] == 'semantickitti' and test_run is not False:
+    if cfg['name'] == 'semantickitti' and test_run is False:
         scan_no = (path_parts[-1]).split('.')[0]
         seq_path = list(path_parts)[:-2]
         seq_path = os.path.join(*seq_path)

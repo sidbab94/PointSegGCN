@@ -51,6 +51,7 @@ def infer(model, inputs):
 
     return predictions
 
+@timing
 def load_saved_model(cfg):
 
     model_path = os.path.join('models', cfg['model_name'])
@@ -75,19 +76,19 @@ def test_single(file=None, test_run=False):
     else:
         test_file = file
 
-    x, a, y = preprocess(test_file, cfg, test_run)
+    x, a, y = preprocess(test_file, cfg, test_run=test_run)
     predictions = infer(loaded_model, [x, a])
 
     pred_labels = np.argmax(predictions, axis=-1)
 
     map_iou(y, pred_labels, cfg)
 
-    PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
-                y_pred=pred_labels, gt_colour=False)
+    # PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
+    #             y_pred=pred_labels, gt_colour=False)
 
 if __name__ == '__main__':
 
     # file = 'D:/SemanticKITTI/dataset/sequences/08/velodyne/002989.bin'
     file = './samples/pc.bin'
 
-    test_single(file, True)
+    test_single(file, test_run=True)

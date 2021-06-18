@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse as sp
 from pyflann import FLANN
 
-from utils import readers as io
+from . import readers as io
 
 
 def preprocess(file_path, cfg, train=False, test_run=False):

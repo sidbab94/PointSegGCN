@@ -86,9 +86,6 @@ def Dense_GCN(cfg, levels=7):
     skips = []
     x, a = X_in, A_in
 
-    x = Conv1D(256, 3, activation='relu')(tf.expand_dims(x, 0))
-    x = tf.squeeze(x, axis=0)
-
     x = GConv(32)([x, a])
     skips.append(x)
 
@@ -124,7 +121,7 @@ def point_net(cfg):
     return model
 
 
-def PointGCN(cfg, levels=7):
+def PointGCN(cfg, levels=3):
 
     F = cfg['n_node_features']
     num_classes = cfg['num_classes']
