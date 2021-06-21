@@ -7,7 +7,7 @@ from tensorflow.keras.models import model_from_json
 
 from utils.func_timer import timing
 from utils.jaccard import iouEval
-from layers import GConv
+from layers import GConv, ConcatAdj
 from utils.visualization import PC_Vis
 from utils.readers import get_cfg_params, get_split_files
 from utils.preprocess import preprocess
@@ -43,11 +43,11 @@ def map_iou(y_true, y_pred, cfg):
     print('Mean IoU: ', round(miou * 100, 2))
     print('-----------------------')
 
+
 @timing
-@tf.function
 def infer(model, inputs):
 
-    predictions = model.predict_step([inputs[0], inputs[1]])
+    predictions = model.predict_step([*inputs])
 
     return predictions
 
@@ -57,9 +57,11 @@ def load_saved_model(cfg):
     model_path = os.path.join('models', cfg['model_name'])
     json_file = open(model_path + '.json', 'r')
     loaded_model_json = json_file.read()
-    loaded_model = model_from_json(loaded_model_json, custom_objects={'GConv': GConv})
+    loaded_model = model_from_json(loaded_model_json,
+                                   custom_objects={'GConv': GConv, 'ConcatAdj': ConcatAdj})
     loaded_model.load_weights(model_path + '.h5')
     json_file.close()
+    print('Model loaded.')
 
     return loaded_model
 
