@@ -43,7 +43,7 @@ def map_iou(y_true, y_pred, cfg):
     print('Mean IoU: ', round(miou * 100, 2))
     print('-----------------------')
 
-
+@timing
 @tf.function
 def infer(model, inputs):
 
@@ -63,20 +63,24 @@ def load_saved_model(cfg):
 
     return loaded_model
 
+
 @timing
-def test_single(file=None, test_run=False):
+def test_single(file=None):
 
     cfg = get_cfg_params()
     loaded_model = load_saved_model(cfg)
 
     if file is None:
-        train_files, val_files, test_files = get_split_files(cfg=cfg)
-        test_file = random.choice(val_files)
-        print('No path provided, performing random inference on: ', test_file)
+        if cfg['fwd_pass_check']:
+            test_file = cfg['fwd_pass_sample']
+        else:
+            train_files, val_files, test_files = get_split_files(cfg=cfg)
+            test_file = random.choice(val_files)
+            print('No path provided, performing random inference on: ', test_file)
     else:
         test_file = file
 
-    x, a, y = preprocess(test_file, cfg, test_run=test_run)
+    x, a, y = preprocess(test_file, cfg)
     predictions = infer(loaded_model, [x, a])
 
     pred_labels = np.argmax(predictions, axis=-1)
@@ -86,9 +90,8 @@ def test_single(file=None, test_run=False):
     # PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
     #             y_pred=pred_labels, gt_colour=False)
 
+
+
 if __name__ == '__main__':
 
-    # file = 'D:/SemanticKITTI/dataset/sequences/08/velodyne/002989.bin'
-    file = './samples/pc.bin'
-
-    test_single(file, test_run=True)
+    test_single()
