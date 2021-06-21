@@ -10,11 +10,11 @@ training_params:
   trial_size: 40000
   ckpt_save: False
   ckpt_restore: False
-  model_name: 'xyz'
+  model_name: 'xyz3'
   save_model: True
   epochs: 50
   num_classes: 20
-  batch_size: 8
+  batch_size: 1
   augment: True
   learning_rate: 0.01
   n_node_features: 7
