@@ -1,24 +1,24 @@
 dataset:
-  base_dir: 'D:/SemanticKITTI/dataset/sequences'
-#  base_dir: '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences'
+#  base_dir: 'D:/SemanticKITTI/dataset/sequences'
+  base_dir: '/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences'
   config: './config/semantic-kitti.yaml'
 
 training_params:
-  trial: False
-  fwd_pass_check: True
+  trial: True
+  fwd_pass_check: False
   fwd_pass_sample: 'samples/pc.bin'
-  trial_size: 40000
+  trial_size: 500
   ckpt_save: False
   ckpt_restore: False
-  model_name: 'xyz'
+  model_name: 'dense_gcn_aug2'
   save_model: True
   epochs: 50
   num_classes: 20
-  batch_size: 8
+  batch_size: 6
   augment: True
   learning_rate: 0.01
   n_node_features: 7
   loss_fn: 'sparse_focal'
   feature_spec: 'xyz_i_rgb'
-  send_stats_teams: False
+  send_stats_teams: True
   teams_hook: 'https://fraunhofer.webhook.office.com/webhookb2/5f369874-5b0b-423d-abc3-39fb74fad97f@f930300c-c97d-4019-be03-add650a171c4/IncomingWebhook/0beb279184194497ac1417542d2b70ad/e5cfb095-83e4-48e3-ab48-a42463de981c'
