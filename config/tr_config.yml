@@ -5,7 +5,7 @@ dataset:
 
 training_params:
   trial: True
-  trial_size: 40000
+  trial_size: 100
   ckpt_save: False
   ckpt_restore: False
   model_name: 'dense_gcn_native'
@@ -16,7 +16,7 @@ training_params:
   augment: True
   learning_rate: 0.01
   n_node_features: 7
-  loss_fn: 'sparse_focal'
+  loss_fn: 'sparse_ce'
   feature_spec: 'xyz_i_rgb'
-  send_stats_teams: True
+  send_stats_teams: False
   teams_hook: 'https://fraunhofer.webhook.office.com/webhookb2/5f369874-5b0b-423d-abc3-39fb74fad97f@f930300c-c97d-4019-be03-add650a171c4/IncomingWebhook/0beb279184194497ac1417542d2b70ad/e5cfb095-83e4-48e3-ab48-a42463de981c'
