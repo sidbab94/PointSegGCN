@@ -19,15 +19,15 @@ def get_cfg_params(cfg_file='config/tr_config.yml'):
     dataset_cfg = safe_load(open(cfg['dataset']['config'], 'r'))
     split_params = dataset_cfg['split']
 
-    seq_list = np.sort(os.listdir(base_dir))
+    # seq_list = np.sort(os.listdir(base_dir))
 
 
     model_cfg = {**tr_params,
                  'name': dataset_cfg['name'],
                  'base_dir': base_dir,
-                 'tr_seq': list(seq_list[split_params['train']]),
-                 'va_seq': list(seq_list[split_params['valid']]),
-                 'te_seq': list(seq_list[split_params['test']]),
+                 'tr_seq': split_params['train'],
+                 'va_seq': split_params['valid'],
+                 'te_seq': split_params['test'],
                  'class_ignore': dataset_cfg["learning_ignore"],
                  'learning_map': dataset_cfg["learning_map"],
                  'learning_map_inv': dataset_cfg["learning_map_inv"],
@@ -121,7 +121,7 @@ def read_calib_txt(file_path):
     return data
 
 
-def read_scan_attr(file_path, cfg, test_run=False):
+def read_scan_attr(file_path, cfg):
     '''
     Encapsulates individual reader functions and accesses all scan attributes
     (point cloud, labels, calibration data, RGB image) from provided point cloud file path.
@@ -132,19 +132,21 @@ def read_scan_attr(file_path, cfg, test_run=False):
 
     path_parts = PurePath(file_path).parts
 
-    if cfg['name'] == 'semantickitti' and test_run is False:
-        scan_no = (path_parts[-1]).split('.')[0]
-        seq_path = list(path_parts)[:-2]
-        seq_path = os.path.join(*seq_path)
-        label_path = os.path.join(seq_path, 'labels', scan_no + '.label')
-        calib_path = os.path.join(seq_path, 'calib.txt')
-        img_path = os.path.join(seq_path, 'image_2', (scan_no + '.png'))
-    else:
+    if cfg['fwd_pass_check']:
         scan_dir = Path(file_path).parent.absolute()
         label_path = os.path.join(scan_dir, 'y.label')
         calib_path = os.path.join(scan_dir, 'calib.txt')
         img_path = os.path.join(scan_dir, 'img.png')
+    else:
+        if cfg['name'] == 'semantickitti':
+            scan_no = (path_parts[-1]).split('.')[0]
+            seq_path = list(path_parts)[:-2]
+            seq_path = os.path.join(*seq_path)
+            label_path = os.path.join(seq_path, 'labels', scan_no + '.label')
+            calib_path = os.path.join(seq_path, 'calib.txt')
+            img_path = os.path.join(seq_path, 'image_2', (scan_no + '.png'))
 
+    print(file_path)
     pc = np.fromfile(file_path, dtype=np.float32).reshape(-1, 4)
     labels = read_label_kitti(label_path, cfg)
     calib = read_calib_txt(calib_path)

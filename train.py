@@ -159,11 +159,13 @@ if __name__ == '__main__':
     list_mious = [0.0]
     loss_func = assign_loss_func(cfg['loss_fn'])
 
-    train_files, val_files, _ = io.get_split_files(cfg, shuffle=True)
-
     if cfg['trial']:
+        train_files, val_files, _ = io.get_split_files(cfg, shuffle=True)
         train_files = train_files[:cfg['trial_size']]
         val_files = val_files[:int(cfg['trial_size'] / 10)]
+    elif cfg['fwd_pass_check']:
+        train_files = [cfg['fwd_pass_sample']]
+        val_files = [cfg['fwd_pass_sample']]
 
     lr_schedule = CyclicalLR(base_lr=0.01, max_lr=0.1)
 
