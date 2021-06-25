@@ -149,7 +149,10 @@ def csr_to_tensor(A):
 
 
 if __name__ == '__main__':
-    scan_file = 'D:/SemanticKITTI/dataset/sequences/08/velodyne/002989.bin'
+    from utils.visualization import PC_Vis
+    scan_file = 'samples/pc.bin'
     cfg = io.get_cfg_params()
 
-    x, a, y = preprocess(scan_file, cfg, train=True)
+    x, a, y = preprocess(scan_file, cfg)
+    PC_Vis.draw_pc_intensity(x[:, :5])
+
