@@ -101,6 +101,23 @@ def adjacency(pc, nn=10):
     return normalize_A(A)
 
 
+def jitter_pc(pc, sigma=0.01, clip=0.05):
+
+  N, C = pc.shape
+  assert(clip > 0)
+  jittered_pc = np.clip(sigma * np.random.randn(N, C), -1*clip, clip)
+  jittered_pc += pc
+
+  return jittered_pc
+
+
+def scale_pc(pc, scale_low=0.9, scale_high=1.1):
+  N, C = pc.shape
+  scales = np.random.uniform(scale_low, scale_high, C)
+  pc *= scales
+  return pc
+
+
 def augment_scan(inputs, bs, angle=90, axis='z'):
 
     x, a, y = inputs
@@ -112,8 +129,13 @@ def augment_scan(inputs, bs, angle=90, axis='z'):
         rot = get_rot_matrix(axis, rads[i])
         rotated = rot @ x[:, :3].T
         rot_pc = np.hstack((rotated.T, x[:, 3:]))
-        if (i % 2 == 0):
-            rot_pc[:, 4:] += np.random.normal(0, 0.1, size=(x.shape[0], 3))
+        # if (i % 3 == 0):
+        #     rot_pc[:, 4:] += np.random.normal(0, 0.1, size=(x.shape[0], 3))
+        if (i != 0):
+            if (i % 2 == 0):
+                rot_pc = jitter_pc(rot_pc)
+            if (i % 3 == 0):
+                rot_pc = scale_pc(rot_pc)
         aug_x.append(rot_pc)
 
     x = np.vstack(aug_x)

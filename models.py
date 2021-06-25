@@ -134,7 +134,7 @@ def Dense_GCN(cfg, levels=7):
         x = Concatenate()([x, skips[i]])
         skips.append(x)
 
-    skips.pop()
+    # skips.pop()
     x = GConv(32)([x, a])
     x = Concatenate()([x, *skips])
 
