@@ -20,6 +20,7 @@ class GConv(Layer):
         self.act = tf.keras.layers.Activation(activation)
 
     def build(self, input_shape):
+        # print(input_shape)
         input_dim = input_shape[0][-1]
         self.w = self.add_weight(
             name='w',
@@ -49,6 +50,31 @@ class GConv(Layer):
                 self.units,
         }
         base_config = super(GConv, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+
+class ConcatAdj(Layer):
+
+    def __init__(self, block_diag=True, **kwargs):
+        super(ConcatAdj, self).__init__()
+        self.block_diag = block_diag
+
+    def call(self, a1, a2):
+        M, N = a1.shape[0], a2.shape[0]
+        new_inds = tf.concat((a1.indices,
+                              tf.add(a2.indices, tf.constant(M, dtype=tf.int64))), 0)
+        new_vals = tf.concat((a1.values, a2.values), -1)
+        a_out = tf.sparse.SparseTensor(indices=new_inds,
+                                       values=new_vals, dense_shape=(M + N, M + N))
+        return a_out
+
+    def get_config(self):
+        config = {
+            'block_diag':
+                self.block_diag,
+        }
+        base_config = super(ConcatAdj, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
