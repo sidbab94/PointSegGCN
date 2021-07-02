@@ -235,7 +235,7 @@ class PC_Vis:
 
         i2rgb = np.interp(intensity, (intensity.min(), intensity.max()), (0.0, 255.0))
         i2rgb /= 255.
-        COL = MplColorHelper('twilight_shifted', i2rgb.min(), i2rgb.max()).get_rgb(i2rgb)
+        COL = MplColorHelper('plasma', i2rgb.min(), i2rgb.max()).get_rgb(i2rgb)
         pc.colors = o3d.utility.Vector3dVector(COL[:, :3])
 
         o3d.visualization.draw_geometries([pc])
