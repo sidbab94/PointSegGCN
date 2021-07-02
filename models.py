@@ -33,7 +33,7 @@ def Concat_GCN_nat(tr_params):
     X_1 = x
 
     for i in range(levels):
-        x = GConv(32)([x, A_in])
+        x = GConv(32, dropout=True)([x, A_in])
         skips.append(x)
 
     skips = reversed(skips)
