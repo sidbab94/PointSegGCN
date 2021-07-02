@@ -87,8 +87,9 @@ def test_single(file=None):
 
     map_iou(y, pred_labels, cfg)
 
-    # PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
-    #             y_pred=pred_labels, gt_colour=False)
+    if cfg['infer_vis']:
+        PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
+                    y_pred=pred_labels, gt_colour=False)
 
 
 
