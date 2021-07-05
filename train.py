@@ -166,7 +166,8 @@ if __name__ == '__main__':
     elif cfg['fwd_pass_check']:
         train_files = [cfg['fwd_pass_sample']]
         val_files = [cfg['fwd_pass_sample']]
-
+    else:
+        train_files, val_files, _ = io.get_split_files(cfg, shuffle=True)
     lr_schedule = CyclicalLR(base_lr=0.01, max_lr=0.1)
 
     opt = Adam(learning_rate=lr_schedule)
