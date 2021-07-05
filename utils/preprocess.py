@@ -12,7 +12,7 @@ def preprocess(file_path, cfg, train=False):
     pc, y, calib, img = io.read_scan_attr(file_path, cfg)
     pc, y = lidar_rgb_fusion(pc, y, calib, img)
     pc, y = constrain_pc(pc, y)
-    a = adjacency(pc, 10)
+    a = adjacency(pc, cfg['k_value'])
 
     if cfg['augment'] and train:
         pc, a, y = augment_scan([pc, a, y], cfg['batch_size'])
@@ -82,7 +82,7 @@ def normalize_A(A):
 
 def adjacency(pc, nn=10):
     dist, idx = nn_search(pc[:, :3], nn)
-
+    assert dist.shape == (pc.shape[0], nn)
     M, k = dist.shape
     assert M, k == idx.shape
 
