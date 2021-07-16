@@ -4,15 +4,15 @@ dataset:
   config: './config/semantic-kitti.yaml'
 
 training_params:
-  trial: True
+  trial: False
   fwd_pass_check: False
   fwd_pass_sample: 'samples/pc.bin'
-  infer_vis: True
+  infer_vis: False
   infer_all: False
-  trial_size: 500
+  trial_size: 100
   ckpt_save: False
   ckpt_restore: False
-  model_name: 'pointseggcn_nodo'
+  model_name: 'pointseggcn_v1'
   save_model: True
   epochs: 10
   num_classes: 20
