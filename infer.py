@@ -14,48 +14,19 @@ from utils.preprocess import preprocess
 
 
 
-def map_iou(y_true, y_pred, cfg):
-
-    class_ignore = cfg["class_ignore"]
-
-    test_miou = iouEval(len(class_ignore), class_ignore)
-
-    test_miou.addBatch(y_pred, y_true)
-    miou, iou = test_miou.getIoU()
-
-    valid_y = np.unique(y_true)
-
-    label_list = list(cfg['labels'].keys())
-
-    valid_cls = {k: v for k, v in class_ignore.items() if v == False}
-
-    print('-----------------------')
-    for i in range(cfg['num_classes']):
-        if i in valid_y:
-            curr_class = cfg['labels'][label_list[i]].capitalize()
-            if i in valid_cls.keys():
-                print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou[i] * 100, 2)))
-
-    print('\n *** Class present in Ground Truth ***')
-
-
-    print('-----------------------')
-    print('Mean IoU: ', round(miou * 100, 2))
-    print('-----------------------')
-
-@timing
 @tf.function
-def infer(model, inputs):
+def predict(model, inputs):
 
     predictions = model.predict_step([inputs[0], inputs[1]])
 
     return predictions
 
-@timing
+
 def load_saved_model(cfg):
 
     model_path = os.path.join('models', cfg['model_name'])
     json_file = open(model_path + '.json', 'r')
+    print(json_file)
     loaded_model_json = json_file.read()
     loaded_model = model_from_json(loaded_model_json, custom_objects={'GConv': GConv})
     loaded_model.load_weights(model_path + '.h5')
@@ -64,35 +35,84 @@ def load_saved_model(cfg):
     return loaded_model
 
 
-@timing
-def test_single(file=None):
-
-    cfg = get_cfg_params()
-    loaded_model = load_saved_model(cfg)
-
-    if file is None:
-        if cfg['fwd_pass_check']:
-            test_file = cfg['fwd_pass_sample']
-        else:
-            train_files, val_files, test_files = get_split_files(cfg=cfg)
-            test_file = random.choice(val_files)
-            print('No path provided, performing random inference on: ', test_file)
-    else:
-        test_file = file
+def test_single(test_file, loaded_model, cfg):
 
     x, a, y = preprocess(test_file, cfg)
-    predictions = infer(loaded_model, [x, a])
+    predictions = predict(loaded_model, [x, a])
 
     pred_labels = np.argmax(predictions, axis=-1)
 
-    map_iou(y, pred_labels, cfg)
+    return x, y, pred_labels
 
-    if cfg['infer_vis']:
-        PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
-                    y_pred=pred_labels, gt_colour=False)
+
+def inference(test_file=None):
+
+    cfg = get_cfg_params()
+    class_ignore = cfg["class_ignore"]
+    label_list = cfg['learning_label_map']
+    test_miou = iouEval(len(class_ignore), class_ignore)
+    loaded_model = load_saved_model(cfg)
+
+
+    if cfg['infer_all']:
+
+        IOU = np.zeros((20,), dtype=np.float32)
+
+        _, val_files, _ = get_split_files(cfg=cfg)
+
+        for file in val_files:
+
+            x, y, y_pred = test_single(file, loaded_model, cfg)
+            test_miou.addBatch(y_pred, y)
+
+            _, iou = test_miou.getIoU()
+            IOU += iou
+
+        IOU /= len(val_files)
+
+        print('==================================')
+        print('Complete evaluation (4070 samples)')
+        print('==================================')
+        for i in range(cfg['num_classes']):
+            curr_class = label_list[i].capitalize()
+            print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(IOU[i] * 100, 2)))
+        print('-----------------------')
+        MIOU =
+        print('Mean IoU: ', round(MIOU * 100, 2))
+        print('-----------------------')
+
+    else:
+
+        if test_file is None:
+            if cfg['fwd_pass_check']:
+                test_file = cfg['fwd_pass_sample']
+            else:
+                train_files, val_files, test_files = get_split_files(cfg=cfg)
+                test_file = random.choice(val_files)
+                print('No path provided, performing random inference on: ', test_file)
+
+        x, y, y_pred = test_single(test_file, loaded_model, cfg)
+        test_miou.addBatch(y_pred, y)
+        miou, iou = test_miou.getIoU()
+
+        print('==================================')
+        print('   Single evaluation (1 sample)   ')
+        print('==================================')
+        for i in range(cfg['num_classes']):
+            curr_class = label_list[i].capitalize()
+            print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou[i] * 100, 2)))
+        print('-----------------------')
+        print('Mean IoU: ', round(miou * 100, 2))
+        print('-----------------------')
+
+        if cfg['infer_vis']:
+            PC_Vis.eval(pc=x, y_true=y, cfg=cfg,
+                        y_pred=y_pred, gt_colour=False)
+
+
 
 
 
 if __name__ == '__main__':
 
-    test_single()
+    test_all()
