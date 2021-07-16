@@ -26,7 +26,6 @@ def load_saved_model(cfg):
 
     model_path = os.path.join('models', cfg['model_name'])
     json_file = open(model_path + '.json', 'r')
-    print(json_file)
     loaded_model_json = json_file.read()
     loaded_model = model_from_json(loaded_model_json, custom_objects={'GConv': GConv})
     loaded_model.load_weights(model_path + '.h5')
@@ -34,7 +33,7 @@ def load_saved_model(cfg):
 
     return loaded_model
 
-
+@timing
 def test_single(test_file, loaded_model, cfg):
 
     x, a, y = preprocess(test_file, cfg)
@@ -45,7 +44,7 @@ def test_single(test_file, loaded_model, cfg):
     return x, y, pred_labels
 
 
-def inference(test_file=None):
+def inference(test_file='/media/baburaj/Seagate Backup Plus Drive/SemanticKITTI/dataset/sequences/08/velodyne/003638.bin'):
 
     cfg = get_cfg_params()
     class_ignore = cfg["class_ignore"]
@@ -77,7 +76,7 @@ def inference(test_file=None):
             curr_class = label_list[i].capitalize()
             print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(IOU[i] * 100, 2)))
         print('-----------------------')
-        MIOU =
+        MIOU = np.mean(IOU[1:])
         print('Mean IoU: ', round(MIOU * 100, 2))
         print('-----------------------')
 
@@ -99,8 +98,9 @@ def inference(test_file=None):
         print('   Single evaluation (1 sample)   ')
         print('==================================')
         for i in range(cfg['num_classes']):
-            curr_class = label_list[i].capitalize()
-            print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou[i] * 100, 2)))
+            if i in np.unique(y):
+                curr_class = label_list[i].capitalize()
+                print('IoU for class {} -- {}   :   {}'.format(i, curr_class, round(iou[i] * 100, 2)))
         print('-----------------------')
         print('Mean IoU: ', round(miou * 100, 2))
         print('-----------------------')
@@ -115,4 +115,4 @@ def inference(test_file=None):
 
 if __name__ == '__main__':
 
-    test_all()
+    inference()
