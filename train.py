@@ -192,7 +192,7 @@ if __name__ == '__main__':
 
     if cfg['save_model']:
         save_dir = os.path.join('models', cfg['model_name'])
-        save_path = os.path.join(save_dir, '.json')
+        save_path = save_dir + '.json'
         model.save_weights(save_dir + '.h5')
         model_json = model.to_json()
         with open(save_dir + '.json', "w") as json_file:
