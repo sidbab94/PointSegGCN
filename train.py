@@ -7,7 +7,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import pymsteams
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, SGD
 
 from utils.jaccard import iouEval
 from models import Concat_GCN_nat as network
@@ -168,9 +168,10 @@ if __name__ == '__main__':
         val_files = [cfg['fwd_pass_sample']]
     else:
         train_files, val_files, _ = io.get_split_files(cfg, shuffle=True)
-    lr_schedule = CyclicalLR(base_lr=0.01, max_lr=0.1)
+    lr_schedule = CyclicalLR(base_lr=cfg['learning_rate'], max_lr=0.1)
 
-    opt = Adam(learning_rate=lr_schedule)
+    # opt = Adam(learning_rate=lr_schedule)
+    opt = SGD(learning_rate=0.1)#, momentum=0.9, nesterov=True)
 
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt)
     manager = tf.train.CheckpointManager(ckpt, './tf_ckpts', max_to_keep=2)
