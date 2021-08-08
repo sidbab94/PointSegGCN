@@ -21,7 +21,7 @@ from pointnet.tf_util import conv1d_bn
 from pointnet import pointnet_base
 
 
-def Concat_GCN_nat(tr_params):
+def PointSegGCN(tr_params):
     F = tr_params['n_node_features']
     num_classes = tr_params['num_classes']
 
@@ -48,7 +48,7 @@ def Concat_GCN_nat(tr_params):
     x = Concatenate()([x, X_1])
 
     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-    model = Model(inputs=[X_in, A_in], outputs=output, name='Res_GCN_v7')
+    model = Model(inputs=[X_in, A_in], outputs=output, name='PointSegGCN')
     return model
 
 
