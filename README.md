@@ -8,7 +8,7 @@ The model, dubbed as PointSegGCN, is trained and tested on SemanticKITTI's annot
 -  [In a Nutshell](#in-a-nutshell)
 -  [Graph-based Learning](#graph-based-learning)
 -  [Multimodal Approach](#multimodal-approach)
--  [Installation/Execution](#installation/execution)
+-  [Setup](#setup)
 -  [Current Progress](#current-progress)
 
 # In a Nutshell
@@ -49,16 +49,26 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 <img src="imgs/FV_velo_rgb.PNG">
 </p>
 
-# Installation/Execution
+# Setup
 
 * Clone the repository
   
-  ``` git clone https://github.com/sidbab94/GraphPC.git ```
+  ``` git clone https://github.com/sidbab94/GraphPC.git .```
   
+* Setup python environment (Python >= 3.7 recommended)
+
+  ``` python3 venv pcgcn ``` and ``` source bin/activate ```
+ 
+* Install packages
+
+  ``` pip install -r requirements.txt ```
+ 
+# Test
+
+Run ``` python infer.py ``` to perform inference on sample LiDAR scan data.
 
 # Current Progress
 
-| Date | Network | mIoU | Avg. Inference Time (s)
-| ------------ | ------------ | ------------- | -------------
-| 13.01.2021 | [U-GCN4](models/summaries/U-GCN4.txt) | 14.45 | 0.742
-| 18.03.2021 | [Deep_GCN](models/summaries/Dense_GCN.txt) | 18.96 | 0.768
+| Network | mIoU | Avg. Inference Time (ms)
+| ------------ | ------------- | -------------
+| [PointSegGCN_v1](models/summaries/PointSegGCN.txt) | 16.4 | 291
