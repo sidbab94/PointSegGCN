@@ -1,29 +1,27 @@
 import os
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
 import tensorflow as tf
+from tensorflow.keras import Model
 from tensorflow.keras.layers import (
     Input,
     Concatenate,
-    concatenate,
     Add,
-    Conv1D,
-    Lambda,
-    GlobalMaxPooling1D,
     MaxPool1D,
     Dense
 )
+
 from layers import GConv, ConcatAdj
 
-from tensorflow.keras import backend as K, Model
-from pointnet.tf_util import conv1d_bn
-from pointnet import pointnet_base
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
-def PointSegGCN(tr_params):
-    F = tr_params['n_node_features']
-    num_classes = tr_params['num_classes']
+def PointSegGCN(cfg):
+    '''
+    Builds PointSegGCN model from skip connections and GCN layers
+    :param cfg: Model parameters retrieved from cfg file
+    :return: Built TF model, ready for forward pass
+    '''
+    F = cfg['n_node_features']
+    num_classes = cfg['num_classes']
 
     X_in = Input(shape=(F,), name='X_in')
     A_in = Input(shape=(None,), sparse=True)
@@ -52,102 +50,13 @@ def PointSegGCN(tr_params):
     return model
 
 
-def Res_GCN(tr_params, levels=7):
-    F = tr_params['n_node_features']
-    num_classes = tr_params['num_classes']
-
-    X_in = Input(shape=(F,), name='X_in')
-    A_in = Input(shape=(None,), sparse=True)
-
-    skips = []
-    x, a = X_in, A_in
-    x = GConv(32)([x, a])
-    skips.append(x)
-
-    for i in range(levels - 1):
-        x = GConv(32)([x, a])
-        x = Add()([x, skips[i]])
-        skips.append(x)
-
-    x = GConv(32)([x, a])
-    x = Concatenate()([x, *skips])
-
-    output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-
-    model = Model(inputs=[X_in, A_in], outputs=output, name='Res_GCN_v7')
-
-    return model
-
-
-# def Dense_GCN(cfg, levels=7):
-#     F = cfg['n_node_features']
-#     num_classes = cfg['num_classes']
-#
-#     X_in = Input(shape=(F,), name='X_in')
-#     A_in = Input(shape=(None,), sparse=True)
-#
-#     skips = []
-#     x, a = X_in, A_in
-#
-#     x = GConv(32)([x, a])
-#     skips.append(x)
-#
-#     for i in range(levels - 1):
-#         x = GConv(32, True)([x, a])
-#         x = Concatenate()([x, skips[i]])
-#         skips.append(x)
-#
-#     skips.pop()
-#     x = GConv(32)([x, a])
-#     x = Concatenate()([x, *skips])
-#
-#     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-#
-#     model = Model(inputs=[X_in, A_in], outputs=output, name='Dense_GCN')
-#
-#     return model
-
-def adj_concat(a1, a2):
-    M, N = a1.shape[0], a2.shape[0]
-    new_inds = tf.concat((a1.indices, tf.add(a2.indices, M)), 0)
-    new_vals = tf.concat((a1.values, a2.values), -1)
-    a_out = tf.sparse.SparseTensor(indices=new_inds,
-                                   values=new_vals, dense_shape=(M + N, M + N))
-    return a_out
-
-
-def Dense_GCN(cfg, levels=7):
-    F = cfg['n_node_features']
-    num_classes = cfg['num_classes']
-
-    X_in = Input(shape=(F,), name='X_in')
-    A_in = Input(shape=(None,), sparse=True)
-
-    skips = []
-    x, a = X_in, A_in
-
-    x = GConv(32)([x, a])
-    skips.append(x)
-
-    for i in range(levels - 1):
-        x = GConv(32, True)([x, a])
-        x = Concatenate()([x, skips[i]])
-        skips.append(x)
-
-    # skips.pop()
-    x = GConv(32)([x, a])
-    x = Concatenate()([x, *skips])
-
-    output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-
-    model = Model(inputs=[X_in, A_in], outputs=output, name='Dense_GCN')
-
-    return model
-
-
-## Dense GCN with vertex-wise concatenation for X and block-diagonal concatenation for A
-def Dense_GCN_v2(cfg, levels=3):
-
+def Dense_GCN(cfg, levels=3):
+    '''
+    Builds a Dense GCN model with vertex-wise skip connections and MLP layers
+    :param cfg: Model parameters retrieved from cfg file
+    :param levels: No. of hierarchichal feature extraction levels
+    :return: Built TF model, ready for forward pass
+    '''
     F = cfg['n_node_features']
     num_classes = cfg['num_classes']
 
@@ -166,6 +75,7 @@ def Dense_GCN_v2(cfg, levels=3):
         x = GConv(32, True)([x, a])
         x = Concatenate(axis=0)([x, x_skips[i]])
         x_skips.append(x)
+        # Block-diagonal concatenation for adjacency matrix
         a = ConcatAdj()(a, a_skips[i])
         a_skips.append(a)
 
@@ -177,62 +87,16 @@ def Dense_GCN_v2(cfg, levels=3):
 
     x = GConv(32)([x, a])
 
+    # Max pooling kernel size computation
     mp_size = int(3 * 2 ** levels - 1)
 
+    # MLP block
     x = MaxPool1D(pool_size=mp_size, data_format='channels_last')(tf.expand_dims(x, 0))
-    ## pending test against larger volumes
     x = Dense(256, activation='softmax')(x)
     x = Dense(128, activation='softmax')(x)
     x = Dense(64, activation='softmax')(x)
     output = Dense(num_classes, activation='softmax')(x)
 
     model = Model(inputs=[X_in, A_in], outputs=output, name='Dense_GCN')
-
-    return model
-
-
-def point_net(cfg):
-    F = cfg['n_node_features']
-    num_classes = cfg['num_classes']
-
-    X_in = Input(shape=(F,), name='X_in')
-
-    net, _ = pointnet_base.get_model(tf.expand_dims(X_in, 1))
-
-    net = tf.keras.layers.Dense(num_classes, activation='softmax')(net)
-
-    model = Model(inputs=X_in, outputs=net, name='pointnet_seg')
-
-    return model
-
-
-def PointGCN(cfg, levels=3):
-    F = cfg['n_node_features']
-    num_classes = cfg['num_classes']
-
-    X_in = Input(shape=(F,), name='X_in')
-    A_in = Input(shape=(None,), sparse=True)
-
-    net, _ = pointnet_base.get_model(tf.expand_dims(X_in, 1))
-
-    skips = []
-    x, a = X_in, A_in
-
-    x = GConv(32)([net, a])
-    skips.append(x)
-
-    for i in range(levels - 1):
-        x = GConv(32, True)([x, a])
-        x = Concatenate()([x, skips[i]])
-        skips.append(x)
-
-    skips.pop()
-    x = GConv(32)([x, a])
-    x = Concatenate()([x, *skips])
-    x = Concatenate()([x, net])
-
-    output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-
-    model = Model(inputs=[X_in, A_in], outputs=output, name='PointGCN')
 
     return model

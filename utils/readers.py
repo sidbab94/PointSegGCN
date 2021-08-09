@@ -1,8 +1,8 @@
 import os
-from pathlib import PurePath, Path
 import numpy as np
-from yaml import safe_load
 from PIL import Image
+from yaml import safe_load
+from pathlib import PurePath, Path
 
 
 def get_cfg_params(cfg_file='config/tr_config.yml'):
@@ -19,21 +19,31 @@ def get_cfg_params(cfg_file='config/tr_config.yml'):
     dataset_cfg = safe_load(open(cfg['dataset']['config'], 'r'))
     split_params = dataset_cfg['split']
 
-    seq_list = np.sort(os.listdir(base_dir))
+    if tr_params['fwd_pass_check']:
+        model_cfg = {**tr_params,
+                     'name': dataset_cfg['name'],
+                     'base_dir': base_dir,
+                     'class_ignore': dataset_cfg["learning_ignore"],
+                     'learning_map': dataset_cfg["learning_map"],
+                     'learning_map_inv': dataset_cfg["learning_map_inv"],
+                     'learning_label_map': dataset_cfg["learning_label_map"],
+                     'color_map': np.array(list(dataset_cfg['color_map'].values())) / 255.,
+                     'labels': dataset_cfg["labels"]}
 
-
-    model_cfg = {**tr_params,
-                 'name': dataset_cfg['name'],
-                 'base_dir': base_dir,
-                 'tr_seq': list(seq_list[split_params['train']]),
-                 'va_seq': list(seq_list[split_params['valid']]),
-                 'te_seq': list(seq_list[split_params['test']]),
-                 'class_ignore': dataset_cfg["learning_ignore"],
-                 'learning_map': dataset_cfg["learning_map"],
-                 'learning_map_inv': dataset_cfg["learning_map_inv"],
-                 'learning_label_map': dataset_cfg["learning_label_map"],
-                 'color_map': np.array(list(dataset_cfg['color_map'].values())) / 255.,
-                 'labels': dataset_cfg["labels"]}
+    else:
+        seq_list = np.sort(os.listdir(base_dir))
+        model_cfg = {**tr_params,
+                     'name': dataset_cfg['name'],
+                     'base_dir': base_dir,
+                     'tr_seq': list(seq_list[split_params['train']]),
+                     'va_seq': list(seq_list[split_params['valid']]),
+                     'te_seq': list(seq_list[split_params['test']]),
+                     'class_ignore': dataset_cfg["learning_ignore"],
+                     'learning_map': dataset_cfg["learning_map"],
+                     'learning_map_inv': dataset_cfg["learning_map_inv"],
+                     'learning_label_map': dataset_cfg["learning_label_map"],
+                     'color_map': np.array(list(dataset_cfg['color_map'].values())) / 255.,
+                     'labels': dataset_cfg["labels"]}
 
 
     return model_cfg
@@ -84,7 +94,7 @@ def get_split_files(cfg, count=-1, shuffle=False):
 
 def read_label_kitti(label_path, config):
     '''
-    Reads .label file and maps it to a sparse one-dimensional numpy.nd.array
+    Reads .label file and maps it to a one-dimensional numpy.nd.array
     :param label_path: SemanticKITTI .label file path
     :param remap_lut: look-up table based on the SemanticKITTI learning_map
     :return: point-wise ground truth label array
@@ -106,6 +116,11 @@ def read_label_kitti(label_path, config):
 
 
 def read_calib_txt(file_path):
+    '''
+    Reads camera calibration parameters from .txt file and maps it to a numpy.nd.array
+    :param file_path: calib.txt file path
+    :return: Camera intrinsic and extrinsic matrices
+    '''
     data = {}
     with open(file_path, 'r') as f:
         for line in f.readlines():

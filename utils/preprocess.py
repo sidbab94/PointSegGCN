@@ -138,7 +138,7 @@ def construct_graph(pc, nn=10):
     Construct a distance-based sparse adjacency graph from the input LiDAR point cloud.
     :param pc: LiDAR point cloud --> NumPy array [N x 3]
     :param nn: Number of nearest neighbours to index
-    :return: normalized distance-based sparse adjacency matrix
+    :return: Normalized distance-based sparse adjacency matrix
     '''
     dist, idx = nn_search(pc[:, :3], nn)
     assert dist.shape == (pc.shape[0], nn)
@@ -165,9 +165,9 @@ def jitter_pc(pc, sigma=0.01, clip=0.05):
     '''
     Adds random geometric jitter to the input LiDAR point cloud
     :param pc: LiDAR point cloud --> NumPy array [N x 3]
-    :param sigma:
-    :param clip:
-    :return:
+    :param sigma: Noise factor
+    :param clip: Threshold for clipping matrix
+    :return: LiDAR point cloud with jitter
     '''
     N, C = pc.shape
     assert (clip > 0)
@@ -178,6 +178,13 @@ def jitter_pc(pc, sigma=0.01, clip=0.05):
 
 
 def scale_pc(pc, scale_low=0.9, scale_high=1.1):
+    '''
+    Multiplies the point cloud array by a uniform distribution
+    :param pc: LiDAR point cloud --> NumPy array [N x 3]
+    :param scale_low: Lower threshold of uniform distribution
+    :param scale_high: Higher threshold of uniform distribution
+    :return: Scaled LiDAR point cloud
+    '''
     N, C = pc.shape
     scales = np.random.uniform(scale_low, scale_high, C)
     pc *= scales
@@ -185,17 +192,23 @@ def scale_pc(pc, scale_low=0.9, scale_high=1.1):
 
 
 def augment_scan(inputs, bs, angle=90, axis='z'):
+    '''
+    Augments input training sample with perturbed versions
+    :param inputs: Tuple of training inputs
+    :param angle: Rotational offset for each augmented sample wrt the original
+    :param axis: Axis wrt which rotational augmentation is performed
+    :return: Augmented training batch
+    '''
     x, a, y = inputs
 
     aug_x = []
     rot_mask = np.linspace(0.0, 3.0, bs)
     rads = np.array(np.radians(rot_mask * angle))
     for i in range(len(rot_mask)):
+        # Get rotational transformation matrix from angle and axis
         rot = get_rot_matrix(axis, rads[i])
         rotated = rot @ x[:, :3].T
         rot_pc = np.hstack((rotated.T, x[:, 3:]))
-        # if (i % 3 == 0):
-        #     rot_pc[:, 4:] += np.random.normal(0, 0.1, size=(x.shape[0], 3))
         if (i != 0):
             if (i % 2 == 0):
                 rot_pc = jitter_pc(rot_pc)
@@ -204,6 +217,7 @@ def augment_scan(inputs, bs, angle=90, axis='z'):
         aug_x.append(rot_pc)
 
     x = np.vstack(aug_x)
+    # Adjacency matrix duplicated along block diagonals
     a = sp.block_diag([a] * bs)
     y = np.tile(y, bs)
 
@@ -211,6 +225,12 @@ def augment_scan(inputs, bs, angle=90, axis='z'):
 
 
 def get_rot_matrix(axis, rads):
+    '''
+    Obtains rotational transformation matrix from input axis and angle
+    :param axis: Axis wrt which rotational augmentation is performed
+    :param rads: Rotational offset for each augmented sample wrt the original, in radians
+    :return: Rotational transformation matrix
+    '''
     cosa = np.cos(rads)
     sina = np.sin(rads)
 
@@ -225,6 +245,11 @@ def get_rot_matrix(axis, rads):
 
 
 def csr_to_tensor(A):
+    '''
+    Converts SciPy's CSR matrix into a TF sparse tensor
+    :param A: Input sparse CSR adjacency matrix (SciPy)
+    :return: TF sparse tensor
+    '''
     row, col, values = sp.find(A)
     out = tf.sparse.SparseTensor(indices=np.array([row, col]).T,
                                  values=values,
@@ -232,13 +257,3 @@ def csr_to_tensor(A):
     A = tf.sparse.reorder(out)
 
     return A
-
-
-if __name__ == '__main__':
-    from utils.visualization import PC_Vis
-
-    scan_file = 'samples/pc.bin'
-    cfg = io.get_cfg_params()
-
-    x, a, y = preprocess(scan_file, cfg)
-    PC_Vis.draw_pc(x, True)

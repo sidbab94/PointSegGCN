@@ -2,6 +2,9 @@ from time import time
 from functools import wraps
 
 def timing(f):
+    '''
+    Function timer wrapping
+    '''
     @wraps(f)
     def wrapper(*args, **kwargs):
         ts = time()

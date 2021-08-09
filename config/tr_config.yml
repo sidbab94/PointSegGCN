@@ -5,7 +5,7 @@ dataset:
 
 training_params:
   trial: False
-  fwd_pass_check: False
+  fwd_pass_check: True
   fwd_pass_sample: 'samples/pc.bin'
   infer_vis: False
   infer_all: False

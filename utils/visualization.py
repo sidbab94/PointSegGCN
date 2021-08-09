@@ -1,11 +1,11 @@
 import os
 import numpy as np
-from mayavi import mlab
-import networkx as nx
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib import cm
 import open3d as o3d
+import networkx as nx
+from mayavi import mlab
+import matplotlib as mpl
+from matplotlib import cm
+import matplotlib.pyplot as plt
 
 os.chdir(os.getcwd())
 
@@ -292,18 +292,3 @@ class PC_Vis:
         pts.glyph.scale_mode = 'data_scaling_off'
 
         mlab.show()
-
-
-
-#
-# if __name__ == '__main__':
-#     from preprocess import *
-#
-#     BASE_DIR = 'D:/SemanticKITTI/dataset/sequences'
-#     model_cfg = get_cfg_params(base_dir=BASE_DIR)
-#     train_files, val_files, _ = get_split_files(dataset_path=BASE_DIR, cfg=model_cfg, count=5, shuffle=True)
-#     sample = train_files[0]
-#     prep = Preprocess(model_cfg)
-#     x, a, y = prep.assess_scan(sample)
-#
-#     PC_Vis.draw_pc(x, True)

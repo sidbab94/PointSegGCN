@@ -1,10 +1,10 @@
 import os
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
-from tensorflow.keras.regularizers import l2
 from tensorflow.keras.layers import Layer
 from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import l2
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class GConv(Layer):
@@ -53,7 +53,6 @@ class GConv(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-
 class ConcatAdj(Layer):
 
     def __init__(self, block_diag=True, **kwargs):
@@ -94,7 +93,6 @@ class MLPBlock(Model):
         # self.bn2c = tf.keras.layers.BatchNormalization()
 
     def call(self, input_tensor, training=False):
-
         x = tf.expand_dims(input_tensor, 0)
 
         x = self.conv2a(x)
@@ -144,5 +142,3 @@ class CyclicalLR(tf.keras.optimizers.schedules.LearningRateSchedule):
             "step_size": self.step_size,
             "name": self.name
         }
-
-

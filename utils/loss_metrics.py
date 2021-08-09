@@ -1,11 +1,9 @@
-from __future__ import print_function, division
 import itertools
-from typing import Any, Optional
 import tensorflow as tf
-import numpy as np
+
+_EPSILON = tf.keras.backend.epsilon()
 from tensorflow.keras import backend as K
 from tensorflow.keras.losses import SparseCategoricalCrossentropy
-_EPSILON = tf.keras.backend.epsilon()
 
 """ Title: Lovasz-Softmax and Jaccard hinge loss in Tensorflow
 Author: Maxim Berman
@@ -117,6 +115,7 @@ dice_cross_entropy() obtained (partially) from:
 https://lars76.github.io/2018/09/27/loss-functions-for-segmentation.html
 '''
 
+
 def tversky_loss(y_true, y_pred):
     alpha = 0.3
     beta = 1 - alpha
@@ -146,7 +145,6 @@ def focal_tversky_loss(y_true, y_pred, gamma=1.1):
 
 
 def sparse_cross_entropy(y_true, y_pred):
-
     loss_fn = SparseCategoricalCrossentropy(from_logits=True)
     o = loss_fn(y_true, y_pred)
 
@@ -157,8 +155,6 @@ def sparse_cross_entropy(y_true, y_pred):
 def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
                                   from_logits: bool = False, axis: int = -1
                                   ) -> tf.Tensor:
-
-
     # Process focusing parameter
     gamma = tf.convert_to_tensor(gamma, dtype=tf.dtypes.float32)
     gamma_rank = gamma.shape.rank
@@ -217,39 +213,3 @@ def sparse_categorical_focal_loss(y_true, y_pred, gamma=5, *,
         loss = tf.reshape(loss, y_pred_shape[:-1])
 
     return loss
-
-
-if __name__ == '__main__':
-
-    y_true = np.array([1, 1, 3, 1, 2, 3], dtype=np.float32)
-    y_pred = np.array([[0.7, 0.9, 0.2, 0.0, 0.0],
-                       [0.0, 0.48, 0.23, 0.3, 0.0],
-                       [0.5, 0.0, 0.2, 0.6, 0.0],
-                       [0.4, 0.7, 0.6, 0.3, 0.0],
-                       [0.0, 0.15, 0.05, 0.55, 0.7],
-                       [0.2, 0.0, 0.11, 0.5, 0.8]], dtype=np.float32)
-
-    classes = np.eye(5)
-    y_true = classes[y_true.astype(int).reshape(-1)]
-    pred_labels = np.argmax(y_pred, axis=-1)
-    print(pred_labels)
-
-    ones = np.ones_like(y_true)
-
-    p0 = y_pred
-    p1 = ones - y_pred
-    g0 = y_true
-    g1 = ones - y_true
-
-    alpha = 0.7
-    beta = 1 - alpha
-
-    TP = np.sum(y_true * y_pred, (0, 1))
-    FN = np.sum(p0 * g1, (0, 1))
-    FP = np.sum(p1 * g0, (0, 1))
-
-    TI = TP / (TP + alpha*FN + beta*FP)
-    TL = 1 - TI
-
-    print(TL)
-
