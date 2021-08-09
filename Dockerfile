@@ -1,18 +1,12 @@
-FROM ubuntu:18.04
-FROM python:3.7-alpine
+FROM ubuntu:20.04
+FROM python:3.7.11-slim-buster
 
-RUN pip3 install virtualenv
+RUN python3 -m venv /opt/pcgcn
 
-RUN virtualenv -p python3 pc_gcn
-RUN source ./pc_gcn/bin/activate && pip install --upgrade pip
+COPY requirements.txt .
 
-WORKDIR /src
-
-COPY requirements.txt requirements.txt
-
-RUN pip install -r requirements.txt
+RUN . /opt/pcgcn/bin/activate && pip install -r requirements.txt
 
 COPY . .
 
-RUN python infer.py
-
+CMD . /opt/pcgcn/bin/activate && exec python infer.py
