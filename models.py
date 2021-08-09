@@ -4,7 +4,6 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import (
     Input,
     Concatenate,
-    Add,
     MaxPool1D,
     Dense
 )
