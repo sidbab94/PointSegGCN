@@ -8,7 +8,7 @@ The model, dubbed as PointSegGCN, is trained and tested on SemanticKITTI's annot
 -  [In a Nutshell](#in-a-nutshell)
 -  [Graph-based Learning](#graph-based-learning)
 -  [Multimodal Approach](#multimodal-approach)
--  [Setup and test](#setup-and-test)
+-  [Setup and Test](#setup-and-test)
 -  [Current Progress](#current-progress)
 
 # In a Nutshell
@@ -49,7 +49,7 @@ This is carried out by the function ```lidar_rgb_fusion()``` in ```utils/preproc
 <img src="imgs/OV_velo_rgb.PNG">
 </p>
 
-# Setup and test
+# Setup and Test
 
 * Clone the repository
   
