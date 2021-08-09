@@ -71,7 +71,7 @@ This is carried out by the function ```lidar_rgb_fusion()``` in ```utils/preproc
 
 | Network | mIoU | Avg. Inference Time (ms)
 | ------------ | ------------- | -------------
-| [PointSegGCN_v1](models/summaries/PointSegGCN.txt) | 16.4 | 291
+| [PointSegGCN_v1](models/PointSegGCN_v1.txt) | 16.4 | 291
 
 Ground Truth vs. Predicted segmentation mask:
 
