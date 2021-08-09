@@ -23,12 +23,12 @@ A Graph is data represented in the form
 </p>
 
 where V and E are the vertices (the datapoints themselves) and the edges (the quantized relations between the datapoints) respectively.
-A graph is numerically represented by an *adjacency matrix*, whose rows and columns correspond to the total number of nodes/vertices present in the data, appropriately filled with values wherever edges are present between nodes. In this git, each sample point cloud is represented by a graph whose nodes are the points (node features being XYZ coordinates and possibly associated RGB values). The edge values are computed by running a KD-tree Nearest Neighbour search algorithm. 
+A graph is numerically represented by an *adjacency matrix*, whose rows and columns correspond to the total number of nodes/vertices present in the data, appropriately filled with values wherever edges are present between nodes. In this git, each sample point cloud is represented by a graph whose nodes are the points (node features being XYZ coordinates and possibly associated RGB values). The edge values are computed by running a FLANN-based KD-tree Nearest Neighbour search algorithm. 
 
 A visualized example is shown below, from an example SemanticKITTI LiDAR scan:
 
 <p align="center">
-<img src="imgs/semkitti_graph.png">
+<img src="imgs/git_social_preview.png">
 </p>
 
 Graphs however, cannot be processed by such traditional CNNs due to their irregular non-Euclidean structure (more abstract). However, T. N. Kipf and M. Welling (2017) proposed a graph-based counterpart to the CNN, termed Graph Convolutional Networks (GCN).
