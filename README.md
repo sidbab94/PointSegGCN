@@ -38,13 +38,13 @@ A single GCN layer performs the following computation:
 <img src="https://render.githubusercontent.com/render/math?math=X' = \sigma(D^{-1/2}AD^{-1/2}XW%2Bb)">
 </p>
 
-where A is the Adjacency Matrix, D the node degree matrix and X is the feature matrix. The proposed model tries to incorporate Graph Convolution layers in an architecture with skip connections.
+where A is the Adjacency Matrix, D the node degree matrix and X is the feature matrix. The proposed model tries to incorporate Graph Convolution layers in an architecture with skip connections. In this repo, point cloud (adjacency) graphs are constructed as part of the pre-processing pipeline, by invoking the function ```construct_graph()``` in ```utils/preprocess.py```.
 
 # Multimodal Approach
 
 A proven way to enhance network performance is to augment each datapoint's feature vector.This ensures that the model extracts more relevant information from the data to facilitate more accurate semantic labeling on test data. Additional information input to a network is called a *modality*. From the SemanticKITTI dataset, there exists two possible modalities associated with each scan: *geometric data* (point cloud XYZ coordinates) and *colour data* (RGB information present in images captured). In this git, a multimodal approach to semantic segmentation is implemented by fusing the LiDAR geometric data with RGB information.
 
-This invokes the ```SensorFusion()``` class, where the camera calibration parameters are obtained and used to compute a velodyne-to-camera projection matrix, and subsequently perform a mapping of the LiDAR points within the Camera FOV to their respective RGB values. An example of such an 'augmented' point cloud is shown below: 
+This is carried out by the function ```lidar_rgb_fusion()``` in ```utils/preprocess.py```, where the camera calibration parameters are obtained and used to compute a velodyne-to-camera projection matrix, and subsequently perform a mapping of the LiDAR points within the Camera FOV to their respective RGB values. An example of such an 'augmented' point cloud is shown below: 
 <p align="center">
 <img src="imgs/OV_velo_rgb.PNG">
 </p>
