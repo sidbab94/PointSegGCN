@@ -8,7 +8,7 @@ The model, dubbed as PointSegGCN, is trained and tested on SemanticKITTI's annot
 -  [In a Nutshell](#in-a-nutshell)
 -  [Graph-based Learning](#graph-based-learning)
 -  [Multimodal Approach](#multimodal-approach)
--  [Installation/Execution](#installation-/-execution)
+-  [Installation/Execution](#installation/execution)
 -  [Current Progress](#current-progress)
 
 # In a Nutshell
