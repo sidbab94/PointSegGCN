@@ -8,7 +8,7 @@ The model, dubbed as PointSegGCN, is trained and tested on SemanticKITTI's annot
 -  [In a Nutshell](#in-a-nutshell)
 -  [Graph-based Learning](#graph-based-learning)
 -  [Multimodal Approach](#multimodal-approach)
--  [Installation and execution instructions](#installation-and-execution-instructions)
+-  [Installation/Execution](#installation-/-execution)
 -  [Current Progress](#current-progress)
 
 # In a Nutshell
@@ -49,7 +49,7 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 <img src="imgs/FV_velo_rgb.PNG">
 </p>
 
-# Installation and execution instructions
+# Installation/Execution
 
 * Clone the repository
   
