@@ -1,4 +1,4 @@
-# GraphPC
+# PointSegGCN
 
 Semantic segmentation of LiDAR point clouds using Graph Convolutional Networks and a projection-based LiDAR-Camera data fusion algorithm.
 The model, dubbed as PointSegGCN, is trained and tested on SemanticKITTI's annotated point clouds, fused with RGB information rendered from the KITTI Visual Odometry Benchmark.
