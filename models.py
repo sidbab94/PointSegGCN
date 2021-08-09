@@ -46,7 +46,7 @@ def PointSegGCN(cfg):
     x = Concatenate()([x, X_1])
 
     output = GConv(num_classes, activation='softmax', kernel_init='glorot_uniform')([x, A_in])
-    model = Model(inputs=[X_in, A_in], outputs=output, name='PointSegGCN')
+    model = Model(inputs=[X_in, A_in], outputs=output, name='PointSegGCN_v1')
     return model
 
 
