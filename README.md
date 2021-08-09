@@ -72,3 +72,9 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 | Network | mIoU | Avg. Inference Time (ms)
 | ------------ | ------------- | -------------
 | [PointSegGCN_v1](models/summaries/PointSegGCN.txt) | 16.4 | 291
+
+Ground Truth vs. Predicted segmentation mask:
+
+<p align="center">
+<img src="imgs/SV_inference_pointseggcnv1.png">
+</p>
