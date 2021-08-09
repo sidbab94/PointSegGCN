@@ -8,7 +8,7 @@ The model, dubbed as PointSegGCN, is trained and tested on SemanticKITTI's annot
 -  [In a Nutshell](#in-a-nutshell)
 -  [Graph-based Learning](#graph-based-learning)
 -  [Multimodal Approach](#multimodal-approach)
--  [Setup](#setup)
+-  [Setup and test](#setup-and-test)
 -  [Current Progress](#current-progress)
 
 # In a Nutshell
@@ -49,7 +49,7 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 <img src="imgs/FV_velo_rgb.PNG">
 </p>
 
-# Setup
+# Setup and test
 
 * Clone the repository
   
@@ -63,9 +63,9 @@ This invokes the ```SensorFusion()``` class, where the camera calibration parame
 
   ``` pip install -r requirements.txt ```
  
-# Test
+* Sample inference
 
-Run ``` python infer.py ``` to perform inference on sample LiDAR scan data.
+  Run ``` python infer.py ``` to perform inference on sample LiDAR scan data.
 
 # Current Progress
 
